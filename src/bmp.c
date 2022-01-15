@@ -32,7 +32,6 @@
 /* Static Function Declarations */
 
 static bool write_header_BITMAPINFOHEADER(const bmp_t* bmp, FILE* file, compression_t compression, size_t image_data_offset);
-static uint32_t read_integer(FILE* file, uint8_t num_lsbs);
 static void write_integer(FILE* file, uint32_t data, uint8_t num_lsbs);
 static bool save_bi_rgb(const bmp_t* bmp, FILE* file);
 static bool save_bi_rle8(const bmp_t* bmp, FILE* file);
@@ -79,71 +78,7 @@ void bmp_destroy(bmp_t* bmp)
     free(bmp->image_data_b);
 }
 
-//File saving/loading
-/*
-bool bmp_load(bmp_t* bmp, const char* file_name)
-{
-    return false;//FIXME things are still very broken
-
-    //TODO refuse to load anything but BITMAPINFOHEADER compatible files
-
-    assert(bmp);
-
-    FILE* file = fopen(file_name, "rb");
-    if (!file)
-        return false;//Failed to open file for reading
-
-    //Read needed header information
-    fseek(file, 18, SEEK_SET);
-    bmp->width = read_integer(file, 4);
-    bmp->height = read_integer(file, 4);
-    fseek(file, 28, SEEK_SET);
-    bmp->bpp = read_integer(file, 2);
-    compression_t compression = read_integer(file, 4);
-    fseek(file, 38, SEEK_SET);
-    bmp->width_m = read_integer(file, 4);
-    bmp->height_m = read_integer(file, 4);
-    bmp->num_palette_colours = read_integer(file, 4);
-
-    //Read pallate info
-    fseek(file, 54, SEEK_SET);
-    if (bmp->num_palette_colours)
-    {
-        bmp_palette_set_size(bmp, bmp->num_palette_colours);//Resize correctly
-
-        for (size_t i = 0; i < bmp->num_palette_colours; ++i)
-        {
-            bmp->palette[0].b = fgetc(file);
-            bmp->palette[0].g = fgetc(file);
-            bmp->palette[0].r = fgetc(file);
-            fseek(file, ftell(file) + 1, SEEK_SET);
-        }
-    }
-
-    //FIXME things are very broken beyond this point
-
-    //Read image data
-    size_t row_len_bits = bmp->width * bmp->bpp;
-    bmp->row_len_bytes = row_len_bits / 8;
-    if (row_len_bits % 8)//Leftover bits
-        ++bmp->row_len_bytes;
-
-    bmp->image_data_b = (uint8_t*) malloc(bmp->row_len_bytes * bmp->height);
-
-    if (compression)
-        return false;//TODO support compression
-
-    char current = fgetc(file);
-    size_t row_index = 0;
-    for (size_t i = 0; i < (bmp->row_len_bytes * bmp->height); ++i)
-    {
-        bmp->image_data_b[i] = fgetc(file);
-        //FIXME this is the wrong way to do this (row padding must be accounted for)
-    }
-
-    return true;
-}
-*/
+//File saving
 
 bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression)
 {
@@ -435,19 +370,6 @@ static bool write_header_BITMAPINFOHEADER(const bmp_t* bmp, FILE* file, compress
     write_integer(file, (bmp->bpp == BPP_8) ? 256 : bmp->num_palette_colours, 4);//If BPP_8, this is always 256
     write_integer(file, 0, 4);//All colours are important
     return true;//TODO proper error checking
-}
-
-static uint32_t read_integer(FILE* file, uint8_t num_lsbs)
-{
-    //TODO error checking
-
-    //BMP integers are stored little-endian (within the header)
-    uint32_t result = 0;
-
-    for (uint8_t i = 0; i < num_lsbs; ++i)
-        result |= fgetc(file) << (8 * i);
-
-    return result;
 }
 
 static void write_integer(FILE* file, uint32_t data, uint8_t num_lsbs)

@@ -1,8 +1,8 @@
 /* bmp.c
  * By: John Jekel
  *
- * Library for bmp (BMP) images.
- * Only "BITMAPINFOHEADER" types supported
+ * Library for managing/saving bmp (BITMAPINFOHEADER-type) images.
+ * Only "" types supported
  *
  * Create a bmp:
  * bmp_t foo;
@@ -23,10 +23,6 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
-
-/* Constants And Defines */
-
-//TODO
 
 /* Types */
 
@@ -61,10 +57,6 @@ typedef struct
 
 } bmp_t;
 
-/* Global Variables */
-
-//TODO
-
 /* Function/Class Declarations */
 
 //Creation/Destruction
@@ -72,8 +64,7 @@ void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp);
 void bmp_clear(bmp_t* bmp);//Zero entirety of bitmap
 void bmp_destroy(bmp_t* bmp);
 
-//File saving/loading
-bool bmp_load(bmp_t* bmp, const char* file_name);
+//File saving
 bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression);
 
 //Palette manip

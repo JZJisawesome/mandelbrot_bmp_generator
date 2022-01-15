@@ -17,8 +17,8 @@
 
 static const mb_config_t mandelbrot_config =
 {
-    .x_pixels = 3840 * 4,//3840
-    .y_pixels = 2160 * 4,//2160
+    .x_pixels = 960,//3840,//3840 * 4
+    .y_pixels = 540,//2160,//2160 * 4
 
     //Nice spiral
     /*

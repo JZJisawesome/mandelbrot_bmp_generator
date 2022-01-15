@@ -22,7 +22,7 @@
 typedef struct
 {
     uint16_t x_pixels, y_pixels;
-    float min_x, max_x, min_y, max_y;
+    long double min_x, max_x, min_y, max_y;
 
     //TODO colour stuffs here too
 
@@ -36,23 +36,19 @@ typedef struct
 
 } mb_intensities_t;
 
-/* Global Variables */
-
-//TODO
-
 /* Function/Class Declarations */
 
+void mb_set_total_active_threads(uint16_t threads);//TODO implement
+
+//Dealing with intensities
 mb_intensities_t* mb_generate_intensities(const mb_config_t* config);
 void mb_destroy_intensities(mb_intensities_t* intensities);
 
-void mb_render_bw(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);
-void mb_render_grey(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);
-void mb_render_grey_8(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);
-void mb_render_colour(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//FIXME kind of ugly
-void mb_render_colour_8(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);
-
-//void mb_config_init(mb_grid_t* intensity_grid, size_t x);
-
-//void mb_grid_compute(mb_grid_t* intensity_grid);
+//Dealing with rendering
+void mb_render_bw(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//1 bit bitmap
+void mb_render_grey(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//24 bit bitmap//TODO remove
+void mb_render_grey_8(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//8 bit bitmap
+void mb_render_colour(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//24 bit bitmap
+void mb_render_colour_8(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//8 bit bitmap
 
 #endif//MANDELBROT_H//TODO

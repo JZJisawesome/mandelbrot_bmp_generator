@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(mandelbrot_bmp_generator VERSION 0.2)
+project(mandelbrot_bmp_generator VERSION 0.3)
 
 set(SOURCES src/main.c src/bmp.c src/mandelbrot.c src/interactive.c src/cmdline.c include/bmp.h include/mandelbrot.h include/interactive.h include/cmdline.h)
 

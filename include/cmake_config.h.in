@@ -2,27 +2,12 @@
  * By: John Jekel
 */
 
-#ifndef NAME_H//TODO
-#define NAME_H//TODO
-
-/* Includes */
-
-//TODO
+#ifndef CMAKE_CONFIG_H//TODO
+#define CMAKE_CONFIG_H//TODO
 
 /* Constants And Defines */
 
-//TODO
+#define MBBMP_VERSION_MAJOR @mandelbrot_bmp_generator_VERSION_MAJOR@
+#define MBBMP_VERSION_MINOR @mandelbrot_bmp_generator_VERSION_MINOR@
 
-/* Types */
-
-//TODO
-
-/* Global Variables */
-
-//TODO
-
-/* Function/Class Declarations */
-
-//TODO
-
-#endif//NAME_H//TODO
+#endif//CMAKE_CONFIG_H//TODO

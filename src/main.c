@@ -6,6 +6,7 @@
 
 #include "cmake_config.h"
 #include "interactive.h"
+#include "cmdline.h"
 
 #include <stdio.h>
 #include <assert.h>
@@ -49,22 +50,22 @@ int grey8_render_thread(void* intensities_void_ptr);
 int colour8_render_thread(void* intensities_void_ptr);
 */
 
-static void cmdline(int argc, char** argv);
-
 /* Function Implementations */
 
-int main(int argc, char** argv)
+int main(int argc, const char* const* argv)
 {
     fprintf(stderr, "mandelbrot_bmp_generator version %u.%u\n", MBBMP_VERSION_MAJOR, MBBMP_VERSION_MINOR);
     fputs("By: John Jekel (JZJ)\n", stderr);
     fprintf(stderr, "Compiled on %s at %s\n", __DATE__, __TIME__);
 
-    if (argc < 2)//Interactive session
-        interactive();
-    else
-        cmdline(argc, argv);
+#ifndef NDEBUG
+    //TODO print git commit info
+#endif
 
-    return 0;
+    if (argc < 2)//Interactive session
+        return interactive();
+    else
+        return cmdline(argc, argv);
 
     /*
     mb_intensities_t* mandelbrot_intensities = mb_generate_intensities(&mandelbrot_config);
@@ -103,10 +104,7 @@ int main(int argc, char** argv)
 
 /* Static Function Implementations */
 
-static void cmdline(int argc, char** argv)
-{
-    assert(false);//TODO implement
-}
+
 
 /*
 int bw_render_thread(void* intensities_void_ptr)

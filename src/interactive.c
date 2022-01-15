@@ -8,6 +8,8 @@
 
 /* Includes */
 
+#include "interactive.h"
+
 #include "mandelbrot.h"
 #include "bmp.h"
 
@@ -42,7 +44,7 @@ static int generate_intensities_async(void* interactive_intensity_gen_struct);
 
 /* Function Implementations */
 
-void interactive(void)
+int32_t interactive(void)
 {
     interactive_intensity_gen_struct_t async_struct;
 
@@ -130,6 +132,7 @@ void interactive(void)
 
     mb_destroy_intensities(async_struct.intensities);
     free(base_name);
+    return 0;
 }
 
 /* Static Function Implementations */

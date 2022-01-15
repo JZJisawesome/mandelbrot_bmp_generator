@@ -24,6 +24,11 @@
 //#include <stdio.h>//TESTING
 
 #ifdef USE_THREADING
+
+#ifdef __STDC_NO_THREADS__
+#error "C11 threading support required for compiling mandelbrot.c"
+#endif
+
 #include <threads.h>
 #include <stdatomic.h>
 #endif

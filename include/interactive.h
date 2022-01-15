@@ -5,8 +5,12 @@
 #ifndef INTERACTIVE_H
 #define INTERACTIVE_H
 
+/* Includes */
+
+#include <stdint.h>
+
 /* Function Declarations */
 
-void interactive(void);
+int32_t interactive(void);
 
 #endif//INTERACTIVE_H

@@ -10,13 +10,32 @@
 
 #include "cmdline.h"
 
+#include "mandelbrot.h"
+#include "bmp.h"
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* Types */
 
-//TODO
+#define NUM_IMAGE_TYPES 4
+
+typedef enum {TYPE_BW, TYPE_GREY, TYPE_COLOUR_8, TYPE_COLOUR, TYPE_INVALID} image_t;
+
+static const struct
+{
+    const char* str;
+    image_t type;
+} image_types_table[NUM_IMAGE_TYPES] =
+{
+    {"bw", TYPE_BW},
+    {"grey", TYPE_GREY},
+    {"colour_8", TYPE_COLOUR_8},
+    {"colour", TYPE_COLOUR}
+};
 
 /* Variables */
 
@@ -25,6 +44,7 @@
 /* Static Function Declarations */
 
 static void print_usage_text(void);
+static image_t parse_type(const char* str);
 
 /* Function Implementations */
 
@@ -37,10 +57,49 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
         return 1;
     }
 
+    mb_config_t config;
+    mb_intensities_t* intensities;
 
+    //TODO error checking
 
+    config.x_pixels = atoi(argv[1]);
+    config.y_pixels = atoi(argv[2]);
+    config.min_x = strtold(argv[3], NULL);
+    config.max_x = strtold(argv[4], NULL);
+    config.min_y = strtold(argv[5], NULL);
+    config.max_y = strtold(argv[6], NULL);
+    mb_set_total_active_threads(atoi(argv[7]));
 
-    assert(false);//TODO implement
+    intensities = mb_generate_intensities(&config);
+
+    bmp_t render;
+    switch (parse_type(argv[8]))
+    {
+        case TYPE_BW:
+            mb_render_bw(intensities, &render);
+            bmp_save(&render, argv[9], BI_RGB);
+            break;
+        case TYPE_GREY:
+            mb_render_grey_8(intensities, &render);
+            bmp_save(&render, argv[9], BI_RLE8);
+            break;
+        case TYPE_COLOUR_8:
+            mb_render_colour_8(intensities, &render);
+            bmp_save(&render, argv[9], BI_RLE8);
+            break;
+        case TYPE_COLOUR:
+            mb_render_colour(intensities, &render);
+            bmp_save(&render, argv[9], BI_RGB);
+            break;
+        default:
+            fputs("Error: Invalid image type\n\n", stderr);
+            print_usage_text();
+            mb_destroy_intensities(intensities);
+            return 1;
+    }
+    bmp_destroy(&render);
+
+    mb_destroy_intensities(intensities);
     return 0;
 }
 
@@ -57,8 +116,18 @@ static void print_usage_text(void)
     fputs("min_imag\tLower imaginary bound of the fractal to produce\n", stderr);
     fputs("max_imag\tUpper imaginary bound of the fractal to produce\n", stderr);
     fputs("threads\tNumber of threads to use\n", stderr);
-    fputs("image_type\tOne of: \"bw\", \"grey\", \"colour8\", \"colour\"\n", stderr);
+    fputs("image_type\tOne of: \"bw\", \"grey\", \"colour_8\", \"colour\"\n", stderr);
     fputs("file_name\tThe file name to write to\n", stderr);
 
+    fputs("\nOr provide a file containing lines each having the arguments above to generate several images\n", stderr);
     fputs("\nOr provide no arguments for an interactive session\n", stderr);
+}
+
+static image_t parse_type(const char* str)
+{
+    for (size_t i = 0; i < NUM_IMAGE_TYPES; ++i)
+        if (!strcmp(image_types_table[i].str, str))
+            return image_types_table[i].type;
+
+    return TYPE_INVALID;
 }

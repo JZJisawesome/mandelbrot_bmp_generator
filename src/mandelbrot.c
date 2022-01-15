@@ -23,7 +23,8 @@
 #include <complex.h>
 #include <limits.h>
 #include <string.h>
-#include <stdio.h>//TESTING
+#include <assert.h>
+//#include <stdio.h>//TESTING
 
 #ifdef USE_THREADING
 #include <threads.h>
@@ -63,6 +64,12 @@ static int generate_intensities_threaded(void* workload_);
 #endif
 
 /* Function Implementations */
+
+void mb_set_total_active_threads(uint16_t threads)
+{
+    assert(threads > 0);
+    max_threads = threads;
+}
 
 mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
 {

@@ -1,18 +1,5 @@
-/* bmp.c
+/* Bitmap writing code
  * By: John Jekel
- *
- * Library for managing/saving bmp (BITMAPINFOHEADER-type) images.
- * Only "" types supported
- *
- * Create a bmp:
- * bmp_t foo;
- * bmp_create(&foo, width, height);
- *
- * TODO better documentation
- *
- *
- * ALWAYS DESTROY bmps AFTER LOADING/CREATING
- *
 */
 
 #ifndef bmp_H

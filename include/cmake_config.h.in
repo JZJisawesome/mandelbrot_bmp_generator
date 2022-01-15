@@ -1,13 +1,13 @@
-/* CMake Config File for access by other C code
+/* CMake config file for access by other C code
  * By: John Jekel
 */
 
-#ifndef CMAKE_CONFIG_H//TODO
-#define CMAKE_CONFIG_H//TODO
+#ifndef CMAKE_CONFIG_H
+#define CMAKE_CONFIG_H
 
 /* Constants And Defines */
 
 #define MBBMP_VERSION_MAJOR @mandelbrot_bmp_generator_VERSION_MAJOR@
 #define MBBMP_VERSION_MINOR @mandelbrot_bmp_generator_VERSION_MINOR@
 
-#endif//CMAKE_CONFIG_H//TODO
+#endif//CMAKE_CONFIG_H

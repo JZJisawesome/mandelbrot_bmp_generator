@@ -1,8 +1,5 @@
-/* NAME//TODO
+/* main() and other glue code
  * By: John Jekel
- *
- * TODO description
- *
 */
 
 /* Includes */
@@ -59,6 +56,7 @@ static void cmdline(int argc, char** argv);
 int main(int argc, char** argv)
 {
     fprintf(stderr, "mandelbrot_bmp_generator version %u.%u\n", MBBMP_VERSION_MAJOR, MBBMP_VERSION_MINOR);
+    fputs("By: John Jekel (JZJ)\n", stderr);
     fprintf(stderr, "Compiled on %s at %s\n", __DATE__, __TIME__);
 
     if (argc < 2)//Interactive session

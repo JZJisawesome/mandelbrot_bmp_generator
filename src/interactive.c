@@ -1,8 +1,5 @@
-/* NAME//TODO
+/* mandelbrot_bmp_generator interactive code
  * By: John Jekel
- *
- * TODO description
- *
 */
 
 /* Constants And Defines */
@@ -37,11 +34,11 @@ typedef struct
 
 /* Static Function Declarations */
 
-static uint16_t interactive_prompt_for_uint(const char* str);
-static long double interactive_prompt_for_ld(const char* str);
-static char* interactive_prompt_str(const char* str);
-static bool interactive_prompt_yn(const char* str);
-static int interactive_generate_intensities(void* interactive_intensity_gen_struct);
+static uint16_t prompt_for_uint(const char* str);
+static long double prompt_for_ld(const char* str);
+static char* prompt_for_str(const char* str);
+static bool prompt_for_yn(const char* str);
+static int generate_intensities_async(void* interactive_intensity_gen_struct);
 
 /* Function Implementations */
 
@@ -52,23 +49,23 @@ void interactive(void)
     putchar('\n');
 
     //Prompt for info needed to generate intensities
-    async_struct.config.x_pixels = interactive_prompt_for_uint("Enter the x resolution of the image (positive integer < 65536): ");
-    async_struct.config.y_pixels = interactive_prompt_for_uint("Enter the y resolution of the image (positive integer < 65536): ");
-    async_struct.config.min_x = interactive_prompt_for_ld("Enter the lower real bound of the fractal to produce: ");
-    async_struct.config.max_x = interactive_prompt_for_ld("Enter the upper real bound of the fractal to produce: ");
-    async_struct.config.min_y = interactive_prompt_for_ld("Enter the lower imaginary bound of the fractal to produce: ");
-    async_struct.config.max_y = interactive_prompt_for_ld("Enter the upper imaginary bound of the fractal to produce: ");
-    mb_set_total_active_threads(interactive_prompt_for_uint("Enter the number of threads to use (positive integer < 65536): "));
+    async_struct.config.x_pixels = prompt_for_uint("Enter the x resolution of the image (positive integer < 65536): ");
+    async_struct.config.y_pixels = prompt_for_uint("Enter the y resolution of the image (positive integer < 65536): ");
+    async_struct.config.min_x = prompt_for_ld("Enter the lower real bound of the fractal to produce: ");
+    async_struct.config.max_x = prompt_for_ld("Enter the upper real bound of the fractal to produce: ");
+    async_struct.config.min_y = prompt_for_ld("Enter the lower imaginary bound of the fractal to produce: ");
+    async_struct.config.max_y = prompt_for_ld("Enter the upper imaginary bound of the fractal to produce: ");
+    mb_set_total_active_threads(prompt_for_uint("Enter the number of threads to use (positive integer < 65536): "));
 
     //Generate intensities while we prompt for other info
     thrd_t intensity_gen_thread;
-    thrd_create(&intensity_gen_thread, &interactive_generate_intensities, (void*) &async_struct);
+    thrd_create(&intensity_gen_thread, &generate_intensities_async, (void*) &async_struct);
 
-    char* base_name = interactive_prompt_str("Enter the base file name you wish to create: ");
-    bool gen_bw = interactive_prompt_yn("Generate a black and white image? (Y/N): ");
-    bool gen_grey = interactive_prompt_yn("Generate a greyscale image? (Y/N): ");
-    bool gen_colour_8 = interactive_prompt_yn("Generate an 8-bit colour image? (Y/N): ");
-    bool gen_colour = interactive_prompt_yn("Generate a 24-bit colour image? (Y/N): ");
+    char* base_name = prompt_for_str("Enter the base file name you wish to create: ");
+    bool gen_bw = prompt_for_yn("Generate a black and white image? (Y/N): ");
+    bool gen_grey = prompt_for_yn("Generate a greyscale image? (Y/N): ");
+    bool gen_colour_8 = prompt_for_yn("Generate an 8-bit colour image? (Y/N): ");
+    bool gen_colour = prompt_for_yn("Generate a 24-bit colour image? (Y/N): ");
 
     //Wait for the intensities to finish generating, then async_struct.intensities will be valid!
     thrd_join(intensity_gen_thread, NULL);
@@ -137,7 +134,7 @@ void interactive(void)
 
 /* Static Function Implementations */
 
-static uint16_t interactive_prompt_for_uint(const char* str)
+static uint16_t prompt_for_uint(const char* str)
 {
     const size_t input_buffer_size = 64;//Should be enough for a whole int64_t
     char input_buffer[input_buffer_size];
@@ -154,7 +151,7 @@ static uint16_t interactive_prompt_for_uint(const char* str)
     return (uint16_t) input_int;
 }
 
-static long double interactive_prompt_for_ld(const char* str)
+static long double prompt_for_ld(const char* str)
 {
     const size_t input_buffer_size = 64;//Enough precision for 128 bit floats
     char input_buffer[input_buffer_size];
@@ -168,7 +165,7 @@ static long double interactive_prompt_for_ld(const char* str)
     return input_ld;
 }
 
-static char* interactive_prompt_str(const char* str)
+static char* prompt_for_str(const char* str)
 {
     const size_t input_buffer_size = 1024;
     char* input_buffer = (char*) malloc(sizeof(char) * input_buffer_size);
@@ -188,7 +185,7 @@ static char* interactive_prompt_str(const char* str)
     return input_buffer;
 }
 
-static bool interactive_prompt_yn(const char* str)
+static bool prompt_for_yn(const char* str)
 {
     const size_t input_buffer_size = 64;
     char input_buffer[input_buffer_size];
@@ -220,7 +217,7 @@ static bool interactive_prompt_yn(const char* str)
     }
 }
 
-static int interactive_generate_intensities(void* interactive_intensity_gen_struct)
+static int generate_intensities_async(void* interactive_intensity_gen_struct)
 {
     interactive_intensity_gen_struct_t* async_struct = (interactive_intensity_gen_struct_t*) interactive_intensity_gen_struct;
     async_struct->intensities = mb_generate_intensities(&async_struct->config);

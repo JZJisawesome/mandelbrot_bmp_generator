@@ -1,8 +1,5 @@
-/* bmp.c
+/* Bitmap writing code
  * By: John Jekel
- *
- * Library for bmp (BMP) images
- *
 */
 
 /* Constants And Defines */

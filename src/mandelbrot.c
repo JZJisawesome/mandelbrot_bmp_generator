@@ -1,8 +1,5 @@
-/* NAME//TODO
+/* Mandelbrot code
  * By: John Jekel
- *
- * TODO description
- *
 */
 
 /* Constants And Defines */

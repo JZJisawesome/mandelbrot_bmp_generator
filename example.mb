@@ -3,6 +3,7 @@
 
 #A classic mandelbrot image
 3840 2160 -2.3 0.8 -1.1 1.1 0 grey samples/classic.bmp
+3840 2160 -2.3 0.8 -1.1 1.1 0 bw samples/classic_bw.bmp
 
 #A nice zoom-in of a spiral
 3840 2160 -0.7473 -0.7433 0.1112 0.1147 0 colour_8 samples/nice_spirals.bmp

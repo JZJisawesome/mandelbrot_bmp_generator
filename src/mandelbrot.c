@@ -8,7 +8,6 @@
 #define CONVERGE_VALUE 2
 
 #define USE_THREADING//FIXME float is broken for some images when using threading
-#define PROCESSING_CHUNKS (max_threads * 4)//So that CPUs aren't just left sitting around
 
 /* Includes */
 
@@ -48,6 +47,7 @@ typedef struct
 /* Variables */
 
 static uint16_t max_threads = 1;
+static uint16_t processing_chunks = 4;//So that CPUs aren't just left sitting around
 static atomic_ushort current_threads = 0;
 
 /* Static Function Declarations */
@@ -68,6 +68,7 @@ void mb_set_total_active_threads(uint16_t threads)
 {
     assert(threads > 0);
     max_threads = threads;
+    processing_chunks = threads * 4;//So that CPUs aren't just left sitting around
 }
 
 mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
@@ -78,24 +79,22 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
     //TODO use vectorization
 
 #ifdef USE_THREADING
-    thrd_t threads[PROCESSING_CHUNKS];
-    thread_workload_t workloads[PROCESSING_CHUNKS];
+    thrd_t threads[processing_chunks];
+    thread_workload_t workloads[processing_chunks];
 
-    for (uint8_t i = 0; i < PROCESSING_CHUNKS; ++i)
+    for (uint8_t i = 0; i < processing_chunks; ++i)
     {
         //Wait for our time to begin
         while (current_threads >= max_threads)
-        {
             thrd_yield();
-        }
-        ++current_threads;
+        ++current_threads;//It's okay if we're not atomic with this comparison after the above since we only increment it here
 
         workloads[i].thread_num = i;
         workloads[i].intensities = intensities;
         thrd_create(&threads[i], generate_intensities_threaded, (void*)&workloads[i]);
     }
 
-    for (uint8_t i = 0; i < PROCESSING_CHUNKS; ++i)
+    for (uint8_t i = 0; i < processing_chunks; ++i)
     {
         thrd_join(threads[i], NULL);
     }
@@ -156,19 +155,20 @@ void mb_destroy_intensities(mb_intensities_t* restrict intensities)
 
 void mb_render_bw(const mb_intensities_t* restrict intensities, bmp_t* restrict bitmap_to_init)
 {
+    bmp_create(bitmap_to_init, intensities->config.x_pixels, intensities->config.y_pixels, BPP_1);
+    /*
     bmp_create(bitmap_to_init, intensities->config.x_pixels, intensities->config.y_pixels, BPP_4);//To allow for rle4 compression
     bmp_palette_set_size(bitmap_to_init, 2);
     bmp_palette_colour_set(bitmap_to_init, 0, (palette_colour_t){0, 0, 0});
     bmp_palette_colour_set(bitmap_to_init, 1, (palette_colour_t){0xFF, 0xFF, 0xFF});
+    */
 
-    bmp_clear(bitmap_to_init);
-
-    //TODO make this faster
+    //TODO make this faster/multithreaded/vectorize
     for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
     {
         for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
         {
-            uint32_t value = intensities->intensities[i + (j * intensities->config.x_pixels)] == ITERATIONS ? 0 : 1;
+            uint32_t value = (intensities->intensities[i + (j * intensities->config.x_pixels)] == ITERATIONS) ? 0 : 1;
 
             bmp_px_set_1(bitmap_to_init, i, j, value);
         }
@@ -184,9 +184,7 @@ void mb_render_grey_8(const mb_intensities_t* restrict intensities, bmp_t* restr
     for (uint16_t i = 0; i < 256; ++i)
         bmp_palette_colour_set(bitmap_to_init, i, (palette_colour_t) {.r = i, .g = i, .b = i});
 
-    bmp_clear(bitmap_to_init);
-
-    //TODO make this faster
+    //TODO make this faster/multithreaded/vectorize
     for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
     {
         for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
@@ -210,9 +208,7 @@ void mb_render_colour(const mb_intensities_t* restrict intensities, bmp_t* restr
 {
     bmp_create(bitmap_to_init, intensities->config.x_pixels, intensities->config.y_pixels, BPP_24);
 
-    bmp_clear(bitmap_to_init);
-
-    //TODO make this faster
+    //TODO make this faster/multithreaded/vectorize
     for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
     {
         for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
@@ -238,7 +234,7 @@ void mb_render_colour(const mb_intensities_t* restrict intensities, bmp_t* restr
                 }
             }
 
-            bmp_px_set(bitmap_to_init, i, j, value);
+            bmp_px_set_24(bitmap_to_init, i, j, value);
         }
     }
 }
@@ -313,9 +309,7 @@ void mb_render_colour_8(const mb_intensities_t* restrict intensities, bmp_t* res
         bmp_palette_colour_set(bitmap_to_init, i, colour);
     }
 
-    bmp_clear(bitmap_to_init);
-
-    //TODO make this faster/multithreaded?
+    //TODO make this faster/multithreaded/vectorize
     for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
     {
         for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
@@ -376,8 +370,8 @@ static int generate_intensities_threaded(void* workload_)
     mb_config_t* config = &intensities->config;
 
     //TODO fix bug when using low precision long double and threading
-    const uint16_t thread_x_px = config->x_pixels / PROCESSING_CHUNKS;
-    const long double thread_x_range = (config->max_x - config->min_x) / PROCESSING_CHUNKS;
+    const uint16_t thread_x_px = config->x_pixels / processing_chunks;
+    const long double thread_x_range = (config->max_x - config->min_x) / processing_chunks;
 
     const long double x_step = (config->max_x - config->min_x) / config->x_pixels;
     const long double y_step = (config->max_y - config->min_y) / config->y_pixels;

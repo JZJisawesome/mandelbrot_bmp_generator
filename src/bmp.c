@@ -33,10 +33,7 @@ void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp)
     bmp->width = width;
     bmp->height = height;
     bmp->bpp = bpp;
-
     bmp->num_palette_colours = 0;
-    bmp->width_m = 1.0;
-    bmp->height_m = 1.0;
 
     size_t row_len_bits = bmp->width * bmp->bpp;
     bmp->row_len_bytes = row_len_bits / 8;
@@ -44,13 +41,11 @@ void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp)
         ++bmp->row_len_bytes;
 
     bmp->image_data_b = (uint8_t*) malloc(bmp->row_len_bytes * height);
-}
 
-void bmp_clear(bmp_t* bmp)
-{
-    assert(bmp);
-
-    memset(bmp->image_data_b, 0, bmp->row_len_bytes * bmp->height);
+    //Clear the bitmap if it is BPP_1 or BPP_4 so that the edge pixels are zeroed properly
+    //TODO determine if this is actually necessary (certainly don't need to do all, just the right edges)
+    //if (bpp == BPP_1 || (bpp == BPP_4))
+    //    memset(bmp->image_data_b, 0, bmp->row_len_bytes * bmp->height);
 }
 
 void bmp_destroy(bmp_t* bmp)
@@ -143,6 +138,7 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
 
 void bmp_px_set_1(bmp_t* bmp, size_t x, size_t y, bool value)
 {
+    //FIXME this is broken
     size_t index2 = (x / 8) + (y * bmp->row_len_bytes);
     uint8_t bit = 7 - (x % 8);
 
@@ -171,10 +167,10 @@ void bmp_px_set_16(bmp_t* bmp, size_t x, size_t y, uint16_t value)
 
 void bmp_px_set_24(bmp_t* bmp, size_t x, size_t y, uint32_t value)
 {
-    size_t index0 = (x * 3) + (y * (bmp->width * 3));
-    bmp->image_data_b[index0] = (value >> 16) & 0xFF;
-    bmp->image_data_b[index0 + 1] = (value >> 8) & 0xFF;
-    bmp->image_data_b[index0 + 2] = value & 0xFF;
+    size_t index = (x * 3) + (y * (bmp->width * 3));
+    bmp->image_data_b[index] = (value >> 16) & 0xFF;
+    bmp->image_data_b[index + 1] = (value >> 8) & 0xFF;
+    bmp->image_data_b[index + 2] = value & 0xFF;
 }
 
 //Palette manip
@@ -193,13 +189,6 @@ void bmp_palette_set_size(bmp_t* bmp, uint16_t num_palette_colours)
         bmp->palette = (palette_colour_t*)malloc(sizeof(palette_colour_t) * num_palette_colours);
 
     bmp->num_palette_colours = num_palette_colours;
-}
-
-palette_colour_t bmp_palette_colour_get(const bmp_t* bmp, uint16_t colour_num)
-{
-    assert(bmp);
-    assert(colour_num < bmp->num_palette_colours);
-    return bmp->palette[colour_num];
 }
 
 void bmp_palette_colour_set(bmp_t* bmp, uint16_t colour_num, palette_colour_t colour)
@@ -241,9 +230,9 @@ static bool write_header_BITMAPINFOHEADER(const bmp_t* bmp, FILE* file, compress
     write_integer(file, compression, 4);
     write_integer(file, 0, 4);
 
-    //Write the pixels per meter in the x and y directions
-    write_integer(file, bmp->width / bmp->width_m, 4);
-    write_integer(file, bmp->height / bmp->height_m, 4);
+    //Write the pixels per meter in the x and y directions (dummy values)
+    write_integer(file, 1, 4);
+    write_integer(file, 1, 4);
 
     //Palltte information
     write_integer(file, (bmp->bpp == BPP_8) ? 256 : bmp->num_palette_colours, 4);//If BPP_8, this is always 256

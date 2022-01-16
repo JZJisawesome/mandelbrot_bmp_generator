@@ -27,8 +27,6 @@ typedef struct
     size_t width;//In pixels
     size_t height;//In pixels (number of rows)
     bpp_t bpp : 6;
-    float width_m;//In meters
-    float height_m;//In meters
 
     uint16_t num_palette_colours : 9;
     palette_colour_t* palette;
@@ -48,7 +46,6 @@ typedef struct
 
 //Creation/Destruction
 void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp);
-void bmp_clear(bmp_t* bmp);//Zero entirety of bitmap
 void bmp_destroy(bmp_t* bmp);
 
 //File saving
@@ -56,7 +53,6 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
 
 //Palette manip
 void bmp_palette_set_size(bmp_t* bmp, uint16_t num_palette_colours);
-palette_colour_t bmp_palette_colour_get(const bmp_t* bmp, uint16_t colour_num);
 void bmp_palette_colour_set(bmp_t* bmp, uint16_t colour_num, palette_colour_t colour);
 
 //Pixel access

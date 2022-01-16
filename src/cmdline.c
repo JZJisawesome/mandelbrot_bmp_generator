@@ -76,23 +76,24 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
     intensities = mb_generate_intensities(&config);
 
     bmp_t render;
+    bool success;
     switch (parse_type(argv[8]))
     {
         case TYPE_BW:
             mb_render_bw(intensities, &render);
-            bmp_save(&render, argv[9], BI_RGB);
+            success = bmp_save(&render, argv[9], BI_RGB);
             break;
         case TYPE_GREY:
             mb_render_grey_8(intensities, &render);
-            bmp_save(&render, argv[9], BI_RLE8);
+            success = bmp_save(&render, argv[9], BI_RLE8);
             break;
         case TYPE_COLOUR_8:
             mb_render_colour_8(intensities, &render);
-            bmp_save(&render, argv[9], BI_RLE8);
+            success = bmp_save(&render, argv[9], BI_RLE8);
             break;
         case TYPE_COLOUR:
             mb_render_colour(intensities, &render);
-            bmp_save(&render, argv[9], BI_RGB);
+            success = bmp_save(&render, argv[9], BI_RGB);
             break;
         default:
             fputs("Error: Invalid image type\n", stderr);
@@ -102,7 +103,10 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
     }
     bmp_destroy(&render);
 
-    fputs("done\n", stderr);
+    if (success)
+        fputs("done\n", stderr);
+    else
+        fputs("Error: Failed to save\n", stderr);
 
     mb_destroy_intensities(intensities);
     return 0;
@@ -190,23 +194,24 @@ static int32_t parse_file(const char* file_name)
         mb_intensities_t* intensities = mb_generate_intensities(&config);
 
         bmp_t render;
+        bool success;
         switch (parse_type(type_string))
         {
             case TYPE_BW:
                 mb_render_bw(intensities, &render);
-                bmp_save(&render, file_name, BI_RGB);
+                success = bmp_save(&render, file_name, BI_RGB);
                 break;
             case TYPE_GREY:
                 mb_render_grey_8(intensities, &render);
-                bmp_save(&render, file_name, BI_RLE8);
+                success = bmp_save(&render, file_name, BI_RLE8);
                 break;
             case TYPE_COLOUR_8:
                 mb_render_colour_8(intensities, &render);
-                bmp_save(&render, file_name, BI_RLE8);
+                success = bmp_save(&render, file_name, BI_RLE8);
                 break;
             case TYPE_COLOUR:
                 mb_render_colour(intensities, &render);
-                bmp_save(&render, file_name, BI_RGB);
+                success = bmp_save(&render, file_name, BI_RGB);
                 break;
             default:
                 fputs("Error: Invalid image type\n", stderr);
@@ -216,7 +221,10 @@ static int32_t parse_file(const char* file_name)
         }
         bmp_destroy(&render);
 
-        fputs("done\n", stderr);
+        if (success)
+            fputs("done\n", stderr);
+        else
+            fputs("Error: Failed to save\n", stderr);
 
         mb_destroy_intensities(intensities);
     }

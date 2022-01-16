@@ -2,10 +2,6 @@
  * By: John Jekel
 */
 
-/* Constants And Defines */
-
-//TODO
-
 /* Includes */
 
 #include "cmdline.h"
@@ -36,10 +32,6 @@ static const struct
     {"colour_8", TYPE_COLOUR_8},
     {"colour", TYPE_COLOUR}
 };
-
-/* Variables */
-
-//TODO
 
 /* Static Function Declarations */
 

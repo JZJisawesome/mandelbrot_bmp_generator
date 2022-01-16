@@ -20,7 +20,6 @@
 #include <limits.h>
 #include <string.h>
 #include <assert.h>
-//#include <stdio.h>//TESTING
 
 #ifdef USE_THREADING
 
@@ -43,14 +42,13 @@ typedef struct
 {
     uint8_t thread_num;
     mb_intensities_t* intensities;
-    atomic_ushort* active_threads;
 } thread_workload_t;
 #endif
 
 /* Variables */
 
 static uint16_t max_threads = 1;
-//static atomic_ushort current_threads = 0;
+static atomic_ushort current_threads = 0;
 
 /* Static Function Declarations */
 
@@ -80,22 +78,20 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
     //TODO use vectorization
 
 #ifdef USE_THREADING
-    atomic_ushort active_threads = 0;
     thrd_t threads[PROCESSING_CHUNKS];
     thread_workload_t workloads[PROCESSING_CHUNKS];
 
     for (uint8_t i = 0; i < PROCESSING_CHUNKS; ++i)
     {
         //Wait for our time to begin
-        while (active_threads >= max_threads)
+        while (current_threads >= max_threads)
         {
             thrd_yield();
         }
-        ++active_threads;
+        ++current_threads;
 
         workloads[i].thread_num = i;
         workloads[i].intensities = intensities;
-        workloads[i].active_threads = &active_threads;
         thrd_create(&threads[i], generate_intensities_threaded, (void*)&workloads[i]);
     }
 
@@ -427,7 +423,7 @@ static int generate_intensities_threaded(void* workload_)
         x += x_step;
     }
 
-    --(*workload->active_threads);
+    --current_threads;
     return 0;
 }
 #endif

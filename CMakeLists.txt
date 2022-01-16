@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 
 project(mandelbrot_bmp_generator VERSION 0.3)
 
-set(SOURCES src/main.c src/bmp.c src/mandelbrot.c src/interactive.c src/cmdline.c include/bmp.h include/mandelbrot.h include/interactive.h include/cmdline.h)
+set(SOURCES src/main.c src/bmp.c src/mandelbrot.c src/interactive.c src/cmdline.c src/cpp.cpp include/bmp.h include/mandelbrot.h include/interactive.h include/cmdline.h include/cpp.h)
 
 add_executable(mbbmp ${SOURCES})
 
@@ -11,7 +11,8 @@ configure_file(include/cmake_config.h.in include/cmake_config.h)
 target_include_directories(mbbmp PRIVATE include ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 
-set_property(TARGET mbbmp PROPERTY C_STANDARD 23)
+set_property(TARGET mbbmp PROPERTY C_STANDARD 11)
+set_property(TARGET mbbmp PROPERTY CXX_STANDARD 11)
 
 target_link_libraries(mbbmp m pthread)
 

@@ -2,10 +2,6 @@
  * By: John Jekel
 */
 
-/* Constants And Defines */
-
-//TODO
-
 /* Includes */
 
 #include "interactive.h"
@@ -29,10 +25,6 @@ typedef struct
     mb_config_t config;
     mb_intensities_t* intensities;
 } interactive_intensity_gen_struct_t;
-
-/* Variables */
-
-//TODO
 
 /* Static Function Declarations */
 

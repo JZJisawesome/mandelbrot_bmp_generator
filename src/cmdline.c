@@ -56,7 +56,7 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
 
     if (argc != 10)
     {
-        fputs("Error: Invalid number of arguments (expected 1 or 9)\n\n", stderr);
+        fputs("Error: Invalid number of arguments (expected 1 or 9)\n", stderr);
         print_usage_text();
         return 1;
     }
@@ -96,7 +96,7 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
             bmp_save(&render, argv[9], BI_RGB);
             break;
         default:
-            fputs("Error: Invalid image type\n\n", stderr);
+            fputs("Error: Invalid image type\n", stderr);
             print_usage_text();
             mb_destroy_intensities(intensities);
             return 1;
@@ -141,15 +141,38 @@ static int32_t parse_file(const char* file_name)
     //TODO error checking
     FILE* file = fopen(file_name, "r");
 
+    if (!file)
+    {
+        fprintf(stderr, "Error: Failed to open \"%s\" for reading\n", file_name);
+        return 1;
+    }
+
     while (true)
     {
+        //Get rid of leading whitespace
+        fscanf(file, " ");
+
+        //Skip lines that begin with hashtags
+        char maybe_hashtag = getc(file);
+        if (maybe_hashtag == EOF)
+            break;
+        else if (maybe_hashtag == '#')
+        {
+            //Skip the current line
+            fscanf(file, "%*[^\n]\n");
+            continue;
+        }
+        else
+            ungetc(maybe_hashtag, file);
+
+
         mb_config_t config;
 
         uint16_t threads;
         char type_string[16];
         char file_name[1024];//TODO support larger file names
 
-        int result = fscanf(file, " %hu %hu %Lf %Lf %Lf %Lf %hu %15s %1023s ",
+        int result = fscanf(file, "%hu %hu %Lf %Lf %Lf %Lf %hu %15s %1023s \n",
                             &config.x_pixels, &config.y_pixels,
                             &config.min_x, &config.max_x, &config.min_y, &config.max_y,
                             &threads, type_string, file_name);
@@ -179,7 +202,7 @@ static int32_t parse_file(const char* file_name)
                 bmp_save(&render, file_name, BI_RGB);
                 break;
             default:
-                fputs("Error: Invalid image type\n\n", stderr);
+                fputs("Error: Invalid image type\n", stderr);
                 print_usage_text();
                 mb_destroy_intensities(intensities);
                 return 1;

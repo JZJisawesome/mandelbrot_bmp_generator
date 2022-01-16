@@ -45,14 +45,18 @@ static const struct
 
 static void print_usage_text(void);
 static image_t parse_type(const char* str);
+static int32_t parse_file(const char* file_name);
 
 /* Function Implementations */
 
 int32_t cmdline(uint32_t argc, const char* const* argv)
 {
+    if (argc == 2)
+        return parse_file(argv[1]);
+
     if (argc != 10)
     {
-        fputs("Error: Invalid number of arguments (expected 9)\n\n", stderr);
+        fputs("Error: Invalid number of arguments (expected 1 or 9)\n\n", stderr);
         print_usage_text();
         return 1;
     }
@@ -130,4 +134,61 @@ static image_t parse_type(const char* str)
             return image_types_table[i].type;
 
     return TYPE_INVALID;
+}
+
+static int32_t parse_file(const char* file_name)
+{
+    //TODO error checking
+    FILE* file = fopen(file_name, "r");
+
+    while (true)
+    {
+        mb_config_t config;
+
+        uint16_t threads;
+        char type_string[16];
+        char file_name[1024];//TODO support larger file names
+
+        int result = fscanf(file, " %hu %hu %Lf %Lf %Lf %Lf %hu %15s %1023s ",
+                            &config.x_pixels, &config.y_pixels,
+                            &config.min_x, &config.max_x, &config.min_y, &config.max_y,
+                            &threads, type_string, file_name);
+
+        if (result == EOF)
+            break;
+
+        mb_intensities_t* intensities = mb_generate_intensities(&config);
+
+        bmp_t render;
+        switch (parse_type(type_string))
+        {
+            case TYPE_BW:
+                mb_render_bw(intensities, &render);
+                bmp_save(&render, file_name, BI_RGB);
+                break;
+            case TYPE_GREY:
+                mb_render_grey_8(intensities, &render);
+                bmp_save(&render, file_name, BI_RLE8);
+                break;
+            case TYPE_COLOUR_8:
+                mb_render_colour_8(intensities, &render);
+                bmp_save(&render, file_name, BI_RLE8);
+                break;
+            case TYPE_COLOUR:
+                mb_render_colour(intensities, &render);
+                bmp_save(&render, file_name, BI_RGB);
+                break;
+            default:
+                fputs("Error: Invalid image type\n\n", stderr);
+                print_usage_text();
+                mb_destroy_intensities(intensities);
+                return 1;
+        }
+        bmp_destroy(&render);
+
+        mb_destroy_intensities(intensities);
+    }
+
+    fclose(file);
+    return 0;
 }

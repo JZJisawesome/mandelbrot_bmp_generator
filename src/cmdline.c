@@ -8,6 +8,7 @@
 
 #include "mandelbrot.h"
 #include "bmp.h"
+#include "cpp.h"
 
 #include <stdio.h>
 #include <stdbool.h>
@@ -64,7 +65,13 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
     config.max_x = strtold(argv[4], NULL);
     config.min_y = strtold(argv[5], NULL);
     config.max_y = strtold(argv[6], NULL);
-    mb_set_total_active_threads(atoi(argv[7]));
+
+    uint16_t threads = atoi(argv[7]);
+    if (!threads)
+        threads = cpp_hw_concurrency();
+    mb_set_total_active_threads(threads);
+
+    fprintf(stderr, "Generating %s (%hux%hu pixels) using %hu threads... ", argv[9], config.x_pixels, config.y_pixels, threads);
 
     intensities = mb_generate_intensities(&config);
 
@@ -95,6 +102,8 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
     }
     bmp_destroy(&render);
 
+    fputs("done\n", stderr);
+
     mb_destroy_intensities(intensities);
     return 0;
 }
@@ -111,7 +120,7 @@ static void print_usage_text(void)
     fputs("max_real\tUpper real bound of the fractal to produce\n", stderr);
     fputs("min_imag\tLower imaginary bound of the fractal to produce\n", stderr);
     fputs("max_imag\tUpper imaginary bound of the fractal to produce\n", stderr);
-    fputs("threads\tNumber of threads to use\n", stderr);
+    fputs("threads\tNumber of threads to use (0 for auto)\n", stderr);
     fputs("image_type\tOne of: \"bw\", \"grey\", \"colour_8\", \"colour\"\n", stderr);
     fputs("file_name\tThe file name to write to\n", stderr);
 
@@ -172,7 +181,11 @@ static int32_t parse_file(const char* file_name)
         if (result == EOF)
             break;
 
+        if (!threads)
+            threads = cpp_hw_concurrency();
         mb_set_total_active_threads(threads);
+
+        fprintf(stderr, "Generating %s (%hux%hu pixels) using %hu threads... ", file_name, config.x_pixels, config.y_pixels, threads);
 
         mb_intensities_t* intensities = mb_generate_intensities(&config);
 
@@ -202,6 +215,8 @@ static int32_t parse_file(const char* file_name)
                 return 1;
         }
         bmp_destroy(&render);
+
+        fputs("done\n", stderr);
 
         mb_destroy_intensities(intensities);
     }

@@ -175,33 +175,6 @@ void mb_render_bw(const mb_intensities_t* restrict intensities, bmp_t* restrict 
     }
 }
 
-void mb_render_grey(const mb_intensities_t* restrict intensities, bmp_t* restrict bitmap_to_init)
-{
-    bmp_create(bitmap_to_init, intensities->config.x_pixels, intensities->config.y_pixels, BPP_32);
-
-    bmp_clear(bitmap_to_init);
-
-    //TODO make this faster
-    for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
-    {
-        for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
-        {
-            uint32_t value;
-            uint32_t intensity = intensities->intensities[i + (j * intensities->config.x_pixels)];
-
-            if (intensity == ITERATIONS)
-                value = 0;
-            else
-            {
-                intensity *= 3;//Avoids obvious banding
-                value = ~(intensity | (intensity << 8) | (intensity << 16));
-            }
-
-            bmp_px_set(bitmap_to_init, i, j, value);
-        }
-    }
-}
-
 void mb_render_grey_8(const mb_intensities_t* restrict intensities, bmp_t* restrict bitmap_to_init)
 {
     bmp_create(bitmap_to_init, intensities->config.x_pixels, intensities->config.y_pixels, BPP_8);

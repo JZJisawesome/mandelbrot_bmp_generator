@@ -2,8 +2,8 @@
  * By: John Jekel
 */
 
-#ifndef MANDELBROT_H//TODO
-#define MANDELBROT_H//TODO
+#ifndef MANDELBROT_H
+#define MANDELBROT_H
 
 /* Includes */
 
@@ -42,9 +42,8 @@ void mb_destroy_intensities(mb_intensities_t* intensities);
 
 //Dealing with rendering
 void mb_render_bw(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//1 bit bitmap
-void mb_render_grey(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//24 bit bitmap//TODO remove
 void mb_render_grey_8(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//8 bit bitmap
 void mb_render_colour(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//24 bit bitmap
 void mb_render_colour_8(const mb_intensities_t* intensities, bmp_t* bitmap_to_init);//8 bit bitmap
 
-#endif//MANDELBROT_H//TODO
+#endif//MANDELBROT_H

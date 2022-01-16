@@ -40,8 +40,6 @@ int32_t interactive(void)
 {
     interactive_intensity_gen_struct_t async_struct;
 
-    putchar('\n');
-
     //Prompt for info needed to generate intensities
     async_struct.config.x_pixels = prompt_for_uint("Enter the x resolution of the image (positive integer < 65536): ");
     async_struct.config.y_pixels = prompt_for_uint("Enter the y resolution of the image (positive integer < 65536): ");
@@ -49,7 +47,7 @@ int32_t interactive(void)
     async_struct.config.max_x = prompt_for_ld("Enter the upper real bound of the fractal to produce: ");
     async_struct.config.min_y = prompt_for_ld("Enter the lower imaginary bound of the fractal to produce: ");
     async_struct.config.max_y = prompt_for_ld("Enter the upper imaginary bound of the fractal to produce: ");
-    mb_set_total_active_threads(prompt_for_uint("Enter the number of threads to use (positive integer < 65536): "));
+    mb_set_total_active_threads(prompt_for_uint("Enter the number of threads to use (positive integer < 65536): "));//TODO allow setting auto
 
     //Generate intensities while we prompt for other info
     thrd_t intensity_gen_thread;

@@ -2,10 +2,6 @@
  * By: John Jekel
 */
 
-/* Constants And Defines */
-
-//TODO
-
 /* Includes */
 
 #include "bmp.h"
@@ -17,14 +13,6 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
-
-/* Types */
-
-//TODO
-
-/* Variables */
-
-//TODO
 
 /* Static Function Declarations */
 

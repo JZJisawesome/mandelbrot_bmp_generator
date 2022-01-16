@@ -171,7 +171,7 @@ static int32_t parse_file(const char* file_name)
 
         uint16_t threads;
         char type_string[16];
-        char file_name[1024];//TODO support larger file names
+        char file_name[4096];//Max most/all OSs support
 
         int result = fscanf(file, "%hu %hu %Lf %Lf %Lf %Lf %hu %15s %1023s \n",
                             &config.x_pixels, &config.y_pixels,

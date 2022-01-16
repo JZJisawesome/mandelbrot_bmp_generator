@@ -1,4 +1,4 @@
-/* Bitmap writing code
+/* Bitmap writing code, cut down for mandelbrot_bmp_generator
  * By: John Jekel
 */
 
@@ -140,71 +140,6 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
 }
 
 //Pixel access
-uint32_t bmp_px_get(const bmp_t* bmp, size_t x, size_t y)
-{
-    assert(bmp);
-    assert(x < bmp->width);
-    assert(y < bmp->height);
-
-    //TODO BPP_24
-    switch (bmp->bpp)
-    {
-        case BPP_32:
-            return bmp->image_data_w[x + (y * bmp->width)];//FIXME this depends on little-endianness
-        case BPP_16:
-            return bmp->image_data_s[x + (y * bmp->width)];//FIXME this depends on little-endianness
-        case BPP_8:
-            return bmp->image_data_b[x + (y * bmp->width)];
-        case BPP_4:
-            size_t index1 = (x / 2) + (y * bmp->row_len_bytes);
-            bool upper_nibble = !(x & 1);
-
-            if (upper_nibble)
-                return bmp->image_data_b[index1] >> 4;
-            else
-                return bmp->image_data_b[index1] & 0xF;
-            break;
-        case BPP_1:
-            size_t index2 = (x + (y * bmp->width)) / 8;
-            uint8_t bit = 7 - (x % 8);
-
-            return bmp->image_data_b[index2] & (1 << bit);
-            break;
-        default:
-            assert(false);
-    }
-}
-
-void bmp_px_set(bmp_t* bmp, size_t x, size_t y, uint32_t value)
-{
-    assert(bmp);
-    assert(x < bmp->width);
-    assert(y < bmp->height);
-
-    switch (bmp->bpp)
-    {
-        case BPP_32:
-            bmp_px_set_32(bmp, x, y, value);
-            break;
-        case BPP_24:
-            bmp_px_set_24(bmp, x, y, value);
-            break;
-        case BPP_16:
-            bmp_px_set_16(bmp, x, y, value);
-            break;
-        case BPP_8:
-            bmp_px_set_8(bmp, x, y, value);
-            break;
-        case BPP_4:
-            bmp_px_set_4(bmp, x, y, value);
-            break;
-        case BPP_1:
-            bmp_px_set_1(bmp, x, y, value);
-            break;
-        default:
-            assert(false);
-    }
-}
 
 void bmp_px_set_1(bmp_t* bmp, size_t x, size_t y, bool value)
 {
@@ -242,11 +177,6 @@ void bmp_px_set_24(bmp_t* bmp, size_t x, size_t y, uint32_t value)
     bmp->image_data_b[index0 + 2] = value & 0xFF;
 }
 
-void bmp_px_set_32(bmp_t* bmp, size_t x, size_t y, uint32_t value)
-{
-    bmp->image_data_w[x + (y * bmp->width)] = value;//FIXME this depends on little-endianness
-}
-
 //Palette manip
 void bmp_palette_set_size(bmp_t* bmp, uint16_t num_palette_colours)
 {
@@ -277,42 +207,6 @@ void bmp_palette_colour_set(bmp_t* bmp, uint16_t colour_num, palette_colour_t co
     assert(bmp);
     assert(colour_num < bmp->num_palette_colours);
     bmp->palette[colour_num] = colour;
-}
-
-//Other access
-
-size_t bmp_width(const bmp_t* bmp)
-{
-    assert(bmp);
-    return bmp->width;
-}
-
-size_t bmp_height(const bmp_t* bmp)
-{
-    assert(bmp);
-    return bmp->height;
-}
-
-bpp_t bmp_bpp(const bmp_t* bmp)
-{
-    assert(bmp);
-    return bmp->bpp;
-}
-
-void* bmp_data_ptr_get(bmp_t* bmp)
-{
-    assert(bmp);
-    return (void*)(bmp->image_data_b);
-}
-
-void bmp_dimension_set(bmp_t* bmp, float x_m, float y_m)//In meters
-{
-    assert(bmp);
-    assert(x_m);
-    assert(y_m);
-
-    bmp->width_m = x_m;
-    bmp->height_m = y_m;
 }
 
 /* Static Function Implementations */

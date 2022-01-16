@@ -2,11 +2,13 @@
 #Do "mbbmp example.mb"
 
 #A classic mandelbrot image
-30720 17280 -2.3 0.8 -1.1 1.1 0 grey classic.bmp
+30720 17280 -2.3 0.8 -1.1 1.1 0 grey samples/fast/classic.bmp
 
 #A nice zoom-in of a spiral
-30720 17280 -0.7473 -0.7433 0.1112 0.1147 0 colour_8 nice_spirals.bmp
+30720 17280 -0.7473 -0.7433 0.1112 0.1147 0 colour_8 samples/nice_spirals.bmp
+30720 17280 -0.7473 -0.7433 0.1112 0.1147 0 colour samples/nice_spirals_24.bmp
 
 #Unnamed (TODO name)
-30720 17280 -0.750222 -0.749191 0.031161 0.031752 0 colour_8 unnamed0.bmp
-30720 17280 -0.34831493420245574 -0.34839774148008254 -0.606486596104741 -0.6065922085831237 0 colour_8 unnamed1.bmp
+30720 17280 -0.750222 -0.749191 0.031161 0.031752 0 colour_8 samples/unnamed0.bmp
+30720 17280 -0.750222 -0.749191 0.031161 0.031752 0 colour samples/unnamed0_24.bmp
+30720 17280 -0.34831493420245574 -0.34839774148008254 -0.606486596104741 -0.6065922085831237 0 colour_8 samples/unnamed1.bmp

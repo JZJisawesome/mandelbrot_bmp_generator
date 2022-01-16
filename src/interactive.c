@@ -160,7 +160,7 @@ static long double prompt_for_ld(const char* str)
 
 static char* prompt_for_str(const char* str)
 {
-    const size_t input_buffer_size = 1024;
+    const size_t input_buffer_size = 4097;
     char* input_buffer = (char*) malloc(sizeof(char) * input_buffer_size);
 
     fputs(str, stdout);

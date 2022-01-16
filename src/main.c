@@ -59,7 +59,7 @@ int main(int argc, const char* const* argv)
     fprintf(stderr, "Compiled on %s at %s\n", __DATE__, __TIME__);
 
 #ifndef NDEBUG
-    //TODO print git commit info
+    //fprintf(stderr, "Debug build: Git info: Commit %s, branch %s\n", MBBMP_GIT_HASH, MBBMP_GIT_BRANCH);
 #endif
 
     if (argc < 2)//Interactive session

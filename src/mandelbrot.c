@@ -8,8 +8,7 @@
 #define CONVERGE_VALUE 2
 
 #define USE_THREADING//FIXME float is broken for some images when using threading
-#define THREADS 12
-#define PROCESSING_CHUNKS (THREADS * 4)//So that CPUs aren't just left sitting around
+#define PROCESSING_CHUNKS (max_threads * 4)//So that CPUs aren't just left sitting around
 
 /* Includes */
 
@@ -51,7 +50,7 @@ typedef struct
 /* Variables */
 
 static uint16_t max_threads = 1;
-static atomic_ushort current_threads = 0;
+//static atomic_ushort current_threads = 0;
 
 /* Static Function Declarations */
 
@@ -88,7 +87,7 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
     for (uint8_t i = 0; i < PROCESSING_CHUNKS; ++i)
     {
         //Wait for our time to begin
-        while (active_threads >= THREADS)
+        while (active_threads >= max_threads)
         {
             thrd_yield();
         }

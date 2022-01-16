@@ -35,9 +35,8 @@ typedef struct
 
 /* Function/Class Declarations */
 
-void mb_set_total_active_threads(uint16_t threads);//TODO implement
-
 //Dealing with intensities
+void mb_set_total_active_threads(uint16_t threads);//For intensity generation only
 mb_intensities_t* mb_generate_intensities(const mb_config_t* config);
 void mb_destroy_intensities(mb_intensities_t* intensities);
 

@@ -180,6 +180,8 @@ static int32_t parse_file(const char* file_name)
         if (result == EOF)
             break;
 
+        mb_set_total_active_threads(threads);
+
         mb_intensities_t* intensities = mb_generate_intensities(&config);
 
         bmp_t render;

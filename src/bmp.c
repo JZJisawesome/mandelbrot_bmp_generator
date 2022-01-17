@@ -40,7 +40,11 @@ void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp)
     if (row_len_bits % 8)//Leftover bits
         ++bmp->row_len_bytes;
 
-    bmp->image_data_b = (uint8_t*) malloc(bmp->row_len_bytes * height);
+    //Pad to the nearest work in memory so that we can use fwrite() directly, sacrificing a few bytes
+    size_t remaining_alignment_bytes = bmp->row_len_bytes % 4;
+    bmp->row_len_bytes += remaining_alignment_bytes;
+
+    bmp->image_data_b = (uint8_t*) malloc(sizeof(uint8_t) * bmp->row_len_bytes * height);
 
     //Clear the bitmap if it is BPP_1 or BPP_4 so that the edge pixels are zeroed properly
     //TODO determine if this is actually necessary (certainly don't need to do all, just the right edges)
@@ -255,22 +259,8 @@ static void write_integer(FILE* file, uint32_t data, uint8_t num_lsbs)
 static bool save_bi_rgb(const bmp_t* bmp, FILE* file)
 {
     //Now we write the actual image data
-
-    for (size_t i = 0; i < bmp->height; ++i)
-    {
-        //Write row bytes to file
-        for (size_t j = 0; j < bmp->row_len_bytes; ++j)
-            if (fputc(bmp->image_data_b[(i * bmp->row_len_bytes) + j], file) == EOF)
-                return false;//If the byte couldn't be written, return false
-
-        //Add padding 0 bytes if needed for 4 byte row allignment
-        size_t remaining_alignment_bytes = (4 - (bmp->row_len_bytes % 4)) % 4;
-        for (size_t j = 0; j < remaining_alignment_bytes; ++j)
-            if (fputc(0, file) == EOF)
-                return false;//If the byte couldn't be written, return false
-    }
-
-    return true;
+    const size_t num_bytes = bmp->row_len_bytes * bmp->height;
+    return fwrite(bmp->image_data_b, sizeof(uint8_t), num_bytes, file) == num_bytes;
 }
 
 static bool save_bi_rle8(const bmp_t* bmp, FILE* file)
@@ -280,6 +270,7 @@ static bool save_bi_rle8(const bmp_t* bmp, FILE* file)
 
     //TODO improve compression ratios using absolute blocks in some places
     //At least on a per line basis (if no compression beats rle)
+    //TODO use fwrite somehow?
 
     for (size_t i = 0; i < bmp->height; ++i)
     {
@@ -326,6 +317,7 @@ static bool save_bi_rle4(const bmp_t* bmp, FILE* file)
     //AKA accept scenarios where the two nibbles aren't equal
     //TODO improve compression ratios using absolute blocks in some places
     //At least on a per line basis (if no compression beats rle)
+    //TODO use fwrite somehow?
 
     for (size_t i = 0; i < bmp->height; ++i)
     {

@@ -148,7 +148,7 @@ static void render(const mb_config_t* restrict config, const char* restrict type
         threads = cpp_hw_concurrency();
     mb_set_total_active_threads(threads);
 
-    fprintf(stderr, "Generating %s (%hux%hu pixels) using %hu threads... ", file_name, config->x_pixels, config->y_pixels, threads);
+    fprintf(stderr, "Generating %s (%hux%hu pixels, %s) using %hu threads... ", file_name, config->x_pixels, config->y_pixels, type_str, threads);
 
     //Generate intensities
     mb_intensities_t* intensities = mb_generate_intensities(config);

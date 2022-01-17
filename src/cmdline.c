@@ -18,27 +18,13 @@
 
 /* Types */
 
-#define NUM_IMAGE_TYPES 4
 
-typedef enum {TYPE_BW, TYPE_GREY, TYPE_COLOUR_8, TYPE_COLOUR, TYPE_INVALID} image_t;
-
-static const struct
-{
-    const char* str;
-    image_t type;
-} image_types_table[NUM_IMAGE_TYPES] =
-{
-    {"bw", TYPE_BW},
-    {"grey", TYPE_GREY},
-    {"colour_8", TYPE_COLOUR_8},
-    {"colour", TYPE_COLOUR}
-};
 
 /* Static Function Declarations */
 
 static void print_usage_text(void);
-static image_t parse_type(const char* str);
 static int32_t parse_file(const char* file_name);
+static void render(const mb_config_t* restrict config, const char* restrict type_str, const char* restrict file_name, uint16_t threads);
 
 /* Function Implementations */
 
@@ -55,7 +41,6 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
     }
 
     mb_config_t config;
-    mb_intensities_t* intensities;
 
     //TODO error checking
 
@@ -66,49 +51,7 @@ int32_t cmdline(uint32_t argc, const char* const* argv)
     config.min_y = strtold(argv[5], NULL);
     config.max_y = strtold(argv[6], NULL);
 
-    uint16_t threads = atoi(argv[7]);
-    if (!threads)
-        threads = cpp_hw_concurrency();
-    mb_set_total_active_threads(threads);
-
-    fprintf(stderr, "Generating %s (%hux%hu pixels) using %hu threads... ", argv[9], config.x_pixels, config.y_pixels, threads);
-
-    intensities = mb_generate_intensities(&config);
-
-    bmp_t render;
-    bool success;
-    switch (parse_type(argv[8]))
-    {
-        case TYPE_BW:
-            mb_render_bw(intensities, &render);
-            success = bmp_save(&render, argv[9], BI_RGB);
-            break;
-        case TYPE_GREY:
-            mb_render_grey_8(intensities, &render);
-            success = bmp_save(&render, argv[9], BI_RLE8);
-            break;
-        case TYPE_COLOUR_8:
-            mb_render_colour_8(intensities, &render);
-            success = bmp_save(&render, argv[9], BI_RLE8);
-            break;
-        case TYPE_COLOUR:
-            mb_render_colour(intensities, &render);
-            success = bmp_save(&render, argv[9], BI_RGB);
-            break;
-        default:
-            fputs("Error: Invalid image type\n", stderr);
-            print_usage_text();
-            mb_destroy_intensities(intensities);
-            return 1;
-    }
-    bmp_destroy(&render);
-
-    if (success)
-        fputs("done\n", stderr);
-    else
-        fputs("Error: Failed to save\n", stderr);
-
-    mb_destroy_intensities(intensities);
+    render(&config, argv[8], argv[9], atoi(argv[7]));
     return 0;
 }
 
@@ -130,15 +73,6 @@ static void print_usage_text(void)
 
     fputs("\nOr provide a file containing lines each having the arguments above to generate several images\n", stderr);
     fputs("\nOr provide no arguments for an interactive session\n", stderr);
-}
-
-static image_t parse_type(const char* str)
-{
-    for (size_t i = 0; i < NUM_IMAGE_TYPES; ++i)
-        if (!strcmp(image_types_table[i].str, str))
-            return image_types_table[i].type;
-
-    return TYPE_INVALID;
 }
 
 static int32_t parse_file(const char* file_name)
@@ -185,50 +119,84 @@ static int32_t parse_file(const char* file_name)
         if (result == EOF)
             break;
 
-        if (!threads)
-            threads = cpp_hw_concurrency();
-        mb_set_total_active_threads(threads);
-
-        fprintf(stderr, "Generating %s (%hux%hu pixels) using %hu threads... ", file_name, config.x_pixels, config.y_pixels, threads);
-
-        mb_intensities_t* intensities = mb_generate_intensities(&config);
-
-        bmp_t render;
-        bool success;
-        switch (parse_type(type_string))
-        {
-            case TYPE_BW:
-                mb_render_bw(intensities, &render);
-                success = bmp_save(&render, file_name, BI_RGB);
-                break;
-            case TYPE_GREY:
-                mb_render_grey_8(intensities, &render);
-                success = bmp_save(&render, file_name, BI_RLE8);
-                break;
-            case TYPE_COLOUR_8:
-                mb_render_colour_8(intensities, &render);
-                success = bmp_save(&render, file_name, BI_RLE8);
-                break;
-            case TYPE_COLOUR:
-                mb_render_colour(intensities, &render);
-                success = bmp_save(&render, file_name, BI_RGB);
-                break;
-            default:
-                fputs("Error: Invalid image type\n", stderr);
-                print_usage_text();
-                mb_destroy_intensities(intensities);
-                return 1;
-        }
-        bmp_destroy(&render);
-
-        if (success)
-            fputs("done\n", stderr);
-        else
-            fputs("Error: Failed to save\n", stderr);
-
-        mb_destroy_intensities(intensities);
+        render(&config, type_string, file_name, threads);
     }
 
     fclose(file);
     return 0;
+}
+
+static void render(const mb_config_t* restrict config, const char* restrict type_str, const char* restrict file_name, uint16_t threads)
+{
+    //Table for parsing image type
+#define NUM_IMAGE_TYPES 4
+    typedef enum {TYPE_BW, TYPE_GREY, TYPE_COLOUR_8, TYPE_COLOUR, TYPE_INVALID} image_t;
+    static const struct
+    {
+        const char* str;
+        image_t type;
+    } image_types_table[NUM_IMAGE_TYPES] =
+    {
+        {"bw", TYPE_BW},
+        {"grey", TYPE_GREY},
+        {"colour_8", TYPE_COLOUR_8},
+        {"colour", TYPE_COLOUR}
+    };
+
+    //Decide the number of threads to use
+    if (!threads)
+        threads = cpp_hw_concurrency();
+    mb_set_total_active_threads(threads);
+
+    fprintf(stderr, "Generating %s (%hux%hu pixels) using %hu threads... ", file_name, config->x_pixels, config->y_pixels, threads);
+
+    //Generate intensities
+    mb_intensities_t* intensities = mb_generate_intensities(config);
+
+    //Parse the type of image to produce
+    image_t type = TYPE_INVALID;
+    for (size_t i = 0; i < NUM_IMAGE_TYPES; ++i)
+    {
+        if (!strcmp(image_types_table[i].str, type_str))
+        {
+            type = image_types_table[i].type;
+            break;
+        }
+    }
+
+    //Render the image
+    bmp_t render;
+    bool success;
+    switch (type)
+    {
+        case TYPE_BW:
+            mb_render_bw(intensities, &render);
+            success = bmp_save(&render, file_name, BI_RGB);
+            break;
+        case TYPE_GREY:
+            mb_render_grey_8(intensities, &render);
+            success = bmp_save(&render, file_name, BI_RLE8);
+            break;
+        case TYPE_COLOUR_8:
+            mb_render_colour_8(intensities, &render);
+            success = bmp_save(&render, file_name, BI_RLE8);
+            break;
+        case TYPE_COLOUR:
+            mb_render_colour(intensities, &render);
+            success = bmp_save(&render, file_name, BI_RGB);
+            break;
+        default:
+            fputs("Error: Invalid image type\n", stderr);
+            print_usage_text();
+            mb_destroy_intensities(intensities);
+            return;
+    }
+    bmp_destroy(&render);
+
+    if (success)
+        fputs("done\n", stderr);
+    else
+        fputs("Error: Failed to save\n", stderr);
+
+    mb_destroy_intensities(intensities);
 }

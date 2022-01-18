@@ -290,10 +290,12 @@ static bool save_bi_rle8(const bmp_t* bmp, FILE* file)
 
     //TODO improve compression ratios using absolute blocks in some places
     //At least on a per line basis (if no compression beats rle)
-    //TODO use fwrite somehow?
 
     for (size_t i = 0; i < bmp->height; ++i)
     {
+        size_t row_buffer_index = 0;
+        uint8_t row_buffer[(bmp->row_len_bytes * 2) + 2];//Worst case max amount of bytes needed
+
         //RLE8 on a per-line basis
         uint8_t byte_count = 1;
         uint8_t replicate_byte = bmp->image_data_b[i * bmp->row_len_bytes];
@@ -303,8 +305,10 @@ static bool save_bi_rle8(const bmp_t* bmp, FILE* file)
 
             if ((match && (byte_count == 255)) || !match)
             {
-                fputc(byte_count, file);
-                fputc(replicate_byte, file);
+                row_buffer[row_buffer_index] = byte_count;
+                ++row_buffer_index;
+                row_buffer[row_buffer_index] = replicate_byte;
+                ++row_buffer_index;
 
                 byte_count = 1;
                 replicate_byte = bmp->image_data_b[j + (i * bmp->row_len_bytes)];
@@ -313,16 +317,23 @@ static bool save_bi_rle8(const bmp_t* bmp, FILE* file)
                 ++byte_count;
         }
         //We ended abruptly, so finish writing the current RLE8 chunk
-        fputc(byte_count, file);
-        fputc(replicate_byte, file);
+        row_buffer[row_buffer_index] = byte_count;
+        ++row_buffer_index;
+        row_buffer[row_buffer_index] = replicate_byte;
+        ++row_buffer_index;
 
         //Add special bytes for end of each row and of the bitmap
-        fputc(0, file);
+        row_buffer[row_buffer_index] = 0;
+        ++row_buffer_index;
 
         if (i == (bmp->height - 1))
-            fputc(1, file);
+            row_buffer[row_buffer_index] = 1;
         else
-            fputc(0, file);
+            row_buffer[row_buffer_index] = 0;
+        ++row_buffer_index;
+
+        //Write it all in one burst
+        fwrite(row_buffer, sizeof(uint8_t), row_buffer_index, file);
     }
 
     return true;

@@ -247,8 +247,7 @@ void mb_render_colour_8(const mb_intensities_t* restrict intensities, bmp_t* res
     bmp_palette_colour_set(bitmap_to_init, 0, (palette_colour_t){.r = 0, .g = 0, .b = 0, .a = 0});//Special case: Non converge produces zero
     for (uint16_t i = 1; i < 256; ++i)
     {
-        palette_colour_t colour;
-        colour.a = 0;
+        palette_colour_t colour = {.r = 0, .g = 0, .b = 0, .a = 0};
 
         const uint8_t max_iterations = 255;
         const uint8_t band_range = max_iterations / 11;

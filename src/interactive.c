@@ -29,7 +29,7 @@ typedef struct
 /* Static Function Declarations */
 
 static uint16_t prompt_for_uint(const char* str);
-static long double prompt_for_ld(const char* str);
+static mbfp_t prompt_for_real(const char* str);
 static char* prompt_for_str(const char* str);
 static bool prompt_for_yn(const char* str);
 static int generate_intensities_async(void* interactive_intensity_gen_struct);
@@ -43,11 +43,11 @@ int32_t interactive(void)
     //Prompt for info needed to generate intensities
     async_struct.config.x_pixels = prompt_for_uint("Enter the x resolution of the image (positive integer < 65536): ");
     async_struct.config.y_pixels = prompt_for_uint("Enter the y resolution of the image (positive integer < 65536): ");
-    async_struct.config.min_x = prompt_for_ld("Enter the lower real bound of the fractal to produce: ");
-    async_struct.config.max_x = prompt_for_ld("Enter the upper real bound of the fractal to produce: ");
-    async_struct.config.min_y = prompt_for_ld("Enter the lower imaginary bound of the fractal to produce: ");
-    async_struct.config.max_y = prompt_for_ld("Enter the upper imaginary bound of the fractal to produce: ");
-    mb_set_total_active_threads(prompt_for_uint("Enter the number of threads to use (positive integer < 65536): "));//TODO allow setting auto
+    async_struct.config.min_x = prompt_for_real("Enter the lower real bound of the fractal to produce: ");
+    async_struct.config.max_x = prompt_for_real("Enter the upper real bound of the fractal to produce: ");
+    async_struct.config.min_y = prompt_for_real("Enter the lower imaginary bound of the fractal to produce: ");
+    async_struct.config.max_y = prompt_for_real("Enter the upper imaginary bound of the fractal to produce: ");
+    mb_set_total_active_threads(prompt_for_uint("Enter the number of threads to use (positive integer < 65536): "));//TODO allow setting auto (for 0)
 
     //Generate intensities while we prompt for other info
     thrd_t intensity_gen_thread;
@@ -144,7 +144,7 @@ static uint16_t prompt_for_uint(const char* str)
     return (uint16_t) input_int;
 }
 
-static long double prompt_for_ld(const char* str)
+static mbfp_t prompt_for_real(const char* str)
 {
     const size_t input_buffer_size = 64;//Enough precision for 128 bit floats
     char input_buffer[input_buffer_size];
@@ -155,7 +155,7 @@ static long double prompt_for_ld(const char* str)
     fgets(input_buffer, input_buffer_size, stdin);
     input_ld = strtold(input_buffer, NULL);
 
-    return input_ld;
+    return (mbfp_t) input_ld;
 }
 
 static char* prompt_for_str(const char* str)

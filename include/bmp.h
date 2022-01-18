@@ -24,14 +24,14 @@ typedef struct
 
 typedef struct
 {
-    size_t width;//In pixels
-    size_t height;//In pixels (number of rows)
-    bpp_t bpp : 6;
+    uint_fast16_t width;//In pixels
+    uint_fast16_t height;//In pixels (number of rows)
+    bpp_t bpp /* : 5 */;
 
-    uint16_t num_palette_colours : 9;
+    uint_fast16_t num_palette_colours /* : 9 */;
     palette_colour_t* palette;
 
-    size_t row_len_bytes;//Number of bytes per row
+    uint_fast32_t row_len_bytes /* : 18 */;//Number of bytes per row
 
     union
     {
@@ -45,21 +45,21 @@ typedef struct
 /* Function/Class Declarations */
 
 //Creation/Destruction
-void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp);
+void bmp_create(bmp_t* bmp, uint_fast16_t width, uint_fast16_t height, bpp_t bpp);
 void bmp_destroy(bmp_t* bmp);
 
 //File saving
 bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression);
 
 //Palette manip
-void bmp_palette_set_size(bmp_t* bmp, uint16_t num_palette_colours);
-void bmp_palette_colour_set(bmp_t* bmp, uint16_t colour_num, palette_colour_t colour);
+void bmp_palette_set_size(bmp_t* bmp, uint_fast16_t num_palette_colours);
+void bmp_palette_colour_set(bmp_t* bmp, uint_fast16_t colour_num, palette_colour_t colour);
 
 //Pixel access
-void bmp_px_set_1(bmp_t* bmp, size_t x, size_t y, bool value);
-void bmp_px_set_4(bmp_t* bmp, size_t x, size_t y, uint8_t value);
-void bmp_px_set_8(bmp_t* bmp, size_t x, size_t y, uint8_t value);
-void bmp_px_set_16(bmp_t* bmp, size_t x, size_t y, uint16_t value);
-void bmp_px_set_24(bmp_t* bmp, size_t x, size_t y, uint32_t value);
+void bmp_px_set_1(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, bool value);
+void bmp_px_set_4(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint8_t value);
+void bmp_px_set_8(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint8_t value);
+void bmp_px_set_16(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint16_t value);
+void bmp_px_set_24(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint32_t value);
 
 #endif//bmp_H

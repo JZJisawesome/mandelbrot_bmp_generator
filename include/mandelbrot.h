@@ -12,10 +12,12 @@
 
 /* Types */
 
+#define mbfp_t long double//float//TODO float is much faster but has a bug with multithreading
+
 typedef struct
 {
     uint16_t x_pixels, y_pixels;
-    long double min_x, max_x, min_y, max_y;
+    mbfp_t min_x, max_x, min_y, max_y;
 
     //TODO colour stuffs here too
 

@@ -28,7 +28,7 @@
 /* Static Function Declarations */
 
 static bool write_header_BITMAPINFOHEADER(const bmp_t* bmp, FILE* file, compression_t compression, size_t image_data_offset);
-static void write_integer(FILE* file, uint32_t data, uint8_t num_lsbs);
+static void write_integer(FILE* file, uint_fast32_t data, uint_fast8_t num_lsbs);
 static bool save_bi_rgb(const bmp_t* bmp, FILE* file);
 static bool save_bi_rle8(const bmp_t* bmp, FILE* file);
 static bool save_bi_rle4(const bmp_t* bmp, FILE* file);
@@ -38,7 +38,7 @@ static size_t get_file_size(FILE* file);
 
 //Creation/Destruction
 
-void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp)
+void bmp_create(bmp_t* bmp, uint_fast16_t width, uint_fast16_t height, bpp_t bpp)
 {
     assert(bmp);
 
@@ -47,13 +47,13 @@ void bmp_create(bmp_t* bmp, size_t width, size_t height, bpp_t bpp)
     bmp->bpp = bpp;
     bmp->num_palette_colours = 0;
 
-    size_t row_len_bits = bmp->width * bmp->bpp;
+    uint32_t row_len_bits = bmp->width * bmp->bpp;
     bmp->row_len_bytes = row_len_bits / 8;
     if (row_len_bits % 8)//Leftover bits
         ++bmp->row_len_bytes;
 
     //Pad to the nearest work in memory so that we can use fwrite() directly, sacrificing a few bytes
-    size_t remaining_alignment_bytes = bmp->row_len_bytes % 4;
+    uint_fast8_t remaining_alignment_bytes = bmp->row_len_bytes % 4;
     bmp->row_len_bytes += remaining_alignment_bytes;
 
     bmp->image_data_b = (uint8_t*) malloc(sizeof(uint8_t) * bmp->row_len_bytes * height);
@@ -93,7 +93,7 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
     //Colour table
     fwrite(bmp->palette, sizeof(palette_colour_t), bmp->num_palette_colours, file);//TODO error checking
     //Pad rest of colour table with zeroes if it is BPP_8
-    size_t padding_words = 256 - bmp->num_palette_colours;
+    uint_fast16_t padding_words = 256 - bmp->num_palette_colours;
     if ((bmp->bpp == BPP_8) && padding_words)
     {
         //Attempt to fseek ahead the correct amount
@@ -104,7 +104,7 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
             fseek(file, original_location, SEEK_SET);
 
             //Write zeroes instead until we get to the proper location
-            for (uint16_t i = 0; i < padding_words; ++i)
+            for (uint_fast16_t i = 0; i < padding_words; ++i)
                 fwrite("\0\0\0", sizeof(char), 4, file);//Write 4 bytes of zeroes//TODO error checking
         }
     }
@@ -153,17 +153,17 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
 
 //Pixel access
 
-void bmp_px_set_1(bmp_t* bmp, size_t x, size_t y, bool value)
+void bmp_px_set_1(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, bool value)
 {
     //FIXME this is broken
     size_t index2 = (x / 8) + (y * bmp->row_len_bytes);
-    uint8_t bit = 7 - (x % 8);
+    uint_fast8_t bit = 7 - (x % 8);
 
     bmp->image_data_b[index2] &= ~(1 << bit);
     bmp->image_data_b[index2] |= (value & 1) << bit;
 }
 
-void bmp_px_set_4(bmp_t* bmp, size_t x, size_t y, uint8_t value)
+void bmp_px_set_4(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint8_t value)
 {
     size_t index1 = (x / 2) + (y * bmp->row_len_bytes);
     bool upper_nibble = !(x & 1);
@@ -172,12 +172,12 @@ void bmp_px_set_4(bmp_t* bmp, size_t x, size_t y, uint8_t value)
     bmp->image_data_b[index1] |= (value & 0xF) << (upper_nibble ? 4 : 0);
 }
 
-void bmp_px_set_8(bmp_t* bmp, size_t x, size_t y, uint8_t value)
+void bmp_px_set_8(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint8_t value)
 {
     bmp->image_data_b[x + (y * bmp->width)] = value;
 }
 
-void bmp_px_set_16(bmp_t* bmp, size_t x, size_t y, uint16_t value)
+void bmp_px_set_16(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint16_t value)
 {
 #if MBBMP_LITTLE_ENDIAN
     bmp->image_data_s[x + (y * bmp->width)] = value;//FIXME this depends on little-endianness
@@ -186,7 +186,7 @@ void bmp_px_set_16(bmp_t* bmp, size_t x, size_t y, uint16_t value)
 #endif
 }
 
-void bmp_px_set_24(bmp_t* bmp, size_t x, size_t y, uint32_t value)
+void bmp_px_set_24(bmp_t* bmp, uint_fast16_t x, uint_fast16_t y, uint32_t value)
 {
     size_t index = (x * 3) + (y * (bmp->width * 3));
     bmp->image_data_b[index] = (value >> 16) & 0xFF;
@@ -195,7 +195,7 @@ void bmp_px_set_24(bmp_t* bmp, size_t x, size_t y, uint32_t value)
 }
 
 //Palette manip
-void bmp_palette_set_size(bmp_t* bmp, uint16_t num_palette_colours)
+void bmp_palette_set_size(bmp_t* bmp, uint_fast16_t num_palette_colours)
 {
     assert(bmp);
 
@@ -212,7 +212,7 @@ void bmp_palette_set_size(bmp_t* bmp, uint16_t num_palette_colours)
     bmp->num_palette_colours = num_palette_colours;
 }
 
-void bmp_palette_colour_set(bmp_t* bmp, uint16_t colour_num, palette_colour_t colour)
+void bmp_palette_colour_set(bmp_t* bmp, uint_fast16_t colour_num, palette_colour_t colour)
 {
     assert(bmp);
     assert(colour_num < bmp->num_palette_colours);
@@ -261,14 +261,15 @@ static bool write_header_BITMAPINFOHEADER(const bmp_t* bmp, FILE* file, compress
     return true;//TODO proper error checking
 }
 
-static void write_integer(FILE* file, uint32_t data, uint8_t num_lsbs)
+static void write_integer(FILE* file, uint_fast32_t  data, uint_fast8_t num_lsbs)
 {
     //BMP integers are stored little-endian (within the header)
 #if MBBMP_LITTLE_ENDIAN
+    assert(num_lsbs <= 4);
     fwrite(&data, sizeof(uint8_t), num_lsbs, file);
 #else
     //Safer function for if we don't know the endianness
-    for (uint8_t i = 0; i < num_lsbs; ++i)
+    for (uint_fast8_t i = 0; i < num_lsbs; ++i)
     {
         fputc(data & 0xFF, file);
         data >>= 8;
@@ -291,15 +292,15 @@ static bool save_bi_rle8(const bmp_t* bmp, FILE* file)
     //TODO improve compression ratios using absolute blocks in some places
     //At least on a per line basis (if no compression beats rle)
 
-    for (size_t i = 0; i < bmp->height; ++i)
+    for (uint_fast16_t i = 0; i < bmp->height; ++i)
     {
-        size_t row_buffer_index = 0;
-        uint8_t row_buffer[(bmp->row_len_bytes * 2) + 2];//Worst case max amount of bytes needed
+        uint_fast32_t row_buffer_index = 0;
+        uint_fast8_t row_buffer[(bmp->row_len_bytes * 2) + 2];//Worst case max amount of bytes needed
 
         //RLE8 on a per-line basis
-        uint8_t byte_count = 1;
-        uint8_t replicate_byte = bmp->image_data_b[i * bmp->row_len_bytes];
-        for (size_t j = byte_count; j < bmp->row_len_bytes; ++j)
+        uint_fast8_t byte_count = 1;
+        uint_fast8_t replicate_byte = bmp->image_data_b[i * bmp->row_len_bytes];
+        for (uint_fast32_t j = byte_count; j < bmp->row_len_bytes; ++j)
         {
             bool match = bmp->image_data_b[j + (i * bmp->row_len_bytes)] == replicate_byte;
 
@@ -350,12 +351,12 @@ static bool save_bi_rle4(const bmp_t* bmp, FILE* file)
     //At least on a per line basis (if no compression beats rle)
     //TODO use fwrite somehow?
 
-    for (size_t i = 0; i < bmp->height; ++i)
+    for (uint_fast16_t i = 0; i < bmp->height; ++i)
     {
         //RLE4 on a per-line basis
-        uint8_t byte_count = 1;
-        uint8_t pixel_count = 2;
-        uint8_t replicate_byte = bmp->image_data_b[i * bmp->row_len_bytes];
+        uint_fast8_t byte_count = 1;
+        uint_fast8_t pixel_count = 2;
+        uint_fast8_t replicate_byte = bmp->image_data_b[i * bmp->row_len_bytes];
 
         for (; byte_count < bmp->row_len_bytes; ++byte_count)
         {
@@ -370,7 +371,7 @@ static bool save_bi_rle4(const bmp_t* bmp, FILE* file)
             replicate_byte = bmp->image_data_b[byte_count + (i * bmp->row_len_bytes)];
         }
 
-        for (size_t j = byte_count; j < bmp->row_len_bytes; ++j)
+        for (uint_fast32_t j = byte_count; j < bmp->row_len_bytes; ++j)
         {
             bool match = bmp->image_data_b[j + (i * bmp->row_len_bytes)] == replicate_byte;
             bool equal_nibbles = (replicate_byte & 0xF) == (replicate_byte >> 4);

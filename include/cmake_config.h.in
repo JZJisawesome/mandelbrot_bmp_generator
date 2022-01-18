@@ -9,5 +9,6 @@
 
 #define MBBMP_VERSION_MAJOR @mandelbrot_bmp_generator_VERSION_MAJOR@
 #define MBBMP_VERSION_MINOR @mandelbrot_bmp_generator_VERSION_MINOR@
+#define MBBMP_LITTLE_ENDIAN @MBBMP_LITTLE_ENDIAN@
 
 #endif//CMAKE_CONFIG_H

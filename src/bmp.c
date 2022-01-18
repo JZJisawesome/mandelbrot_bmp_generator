@@ -6,6 +6,8 @@
 
 #include "bmp.h"
 
+#include "cmake_config.h"
+
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -13,6 +15,15 @@
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+
+/* Constants And Defines */
+
+#ifdef MBBMP_LITTLE_ENDIAN
+#undef MBBMP_LITTLE_ENDIAN
+#define MBBMP_LITTLE_ENDIAN 1
+#else
+#define MBBMP_LITTLE_ENDIAN 0
+#endif
 
 /* Static Function Declarations */
 
@@ -168,7 +179,11 @@ void bmp_px_set_8(bmp_t* bmp, size_t x, size_t y, uint8_t value)
 
 void bmp_px_set_16(bmp_t* bmp, size_t x, size_t y, uint16_t value)
 {
+#if MBBMP_LITTLE_ENDIAN
     bmp->image_data_s[x + (y * bmp->width)] = value;//FIXME this depends on little-endianness
+#else
+#error "TODO implement bmp_px_set_16 w/ big endianness"
+#endif
 }
 
 void bmp_px_set_24(bmp_t* bmp, size_t x, size_t y, uint32_t value)
@@ -248,14 +263,17 @@ static bool write_header_BITMAPINFOHEADER(const bmp_t* bmp, FILE* file, compress
 
 static void write_integer(FILE* file, uint32_t data, uint8_t num_lsbs)
 {
-    //TODO error checking
-
     //BMP integers are stored little-endian (within the header)
+#if MBBMP_LITTLE_ENDIAN
+    fwrite(&data, sizeof(uint8_t), num_lsbs, file);
+#else
+    //Safer function for if we don't know the endianness
     for (uint8_t i = 0; i < num_lsbs; ++i)
     {
         fputc(data & 0xFF, file);
         data >>= 8;
     }
+#endif
 }
 
 static bool save_bi_rgb(const bmp_t* bmp, FILE* file)

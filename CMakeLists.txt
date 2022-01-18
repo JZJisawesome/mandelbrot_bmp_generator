@@ -6,8 +6,6 @@ set(SOURCES src/main.c src/bmp.c src/mandelbrot.c src/interactive.c src/cmdline.
 
 add_executable(mbbmp ${SOURCES})
 
-configure_file(include/cmake_config.h.in include/cmake_config.h)
-
 target_include_directories(mbbmp PRIVATE include ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 
@@ -24,3 +22,11 @@ endif()
 set(CMAKE_C_FLAGS "-Wall -Wextra -g3")
 set(CMAKE_C_FLAGS_DEBUG "-Og")
 set(CMAKE_C_FLAGS_RELEASE "-Ofast -flto=auto -fuse-linker-plugin -floop-nest-optimize -fipa-pta -fno-semantic-interposition -fdevirtualize-at-ltrans -fno-plt -fstdarg-opt -frename-registers -fweb -ftree-vectorize")
+
+if (CMAKE_C_BYTE_ORDER STREQUAL LITTLE_ENDIAN)
+    set(MBBMP_LITTLE_ENDIAN 1)
+else()
+    set(MBBMP_LITTLE_ENDIAN 0)
+endif()
+
+configure_file(include/cmake_config.h.in include/cmake_config.h)

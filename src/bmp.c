@@ -21,6 +21,7 @@ static void write_integer(FILE* file, uint32_t data, uint8_t num_lsbs);
 static bool save_bi_rgb(const bmp_t* bmp, FILE* file);
 static bool save_bi_rle8(const bmp_t* bmp, FILE* file);
 static bool save_bi_rle4(const bmp_t* bmp, FILE* file);
+static size_t get_file_size(FILE* file);
 
 /* Function Implementations */
 
@@ -79,18 +80,23 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
         success = false;
 
     //Colour table
-    for (uint16_t i = 0; i < bmp->num_palette_colours; ++i)
-    {
-        //TODO error checking
-        fputc(bmp->palette[i].b, file);
-        fputc(bmp->palette[i].g, file);
-        fputc(bmp->palette[i].r, file);
-        fputc(0, file);//Reserved
-    }
+    fwrite(bmp->palette, sizeof(palette_colour_t), bmp->num_palette_colours, file);//TODO error checking
     //Pad rest of colour table with zeroes if it is BPP_8
-    if (bmp->bpp == BPP_8)
-        for (uint16_t i = 0; i < (256 - bmp->num_palette_colours); ++i)
-            write_integer(file, 0, 4);//TODO error checking
+    size_t padding_words = 256 - bmp->num_palette_colours;
+    if ((bmp->bpp == BPP_8) && padding_words)
+    {
+        //Attempt to fseek ahead the correct amount
+        size_t original_location = ftell(file);
+        if (fseek(file, padding_words, SEEK_CUR))//Seek failed beyond end of file
+        {
+            //Undo what we just did since the libc does not support sparse files
+            fseek(file, original_location, SEEK_SET);
+
+            //Write zeroes instead until we get to the proper location
+            for (uint16_t i = 0; i < padding_words; ++i)
+                fwrite("\0\0\0", sizeof(char), 4, file);//Write 4 bytes of zeroes//TODO error checking
+        }
+    }
 
     //Image data
     switch (compression)
@@ -113,11 +119,7 @@ bool bmp_save(const bmp_t* bmp, const char* file_name, compression_t compression
     }
 
     //Now handle file size
-    size_t file_size = 0;
-    rewind(file);
-
-    while (fgetc(file) != EOF)
-        ++file_size;
+    size_t file_size = get_file_size(file);
 
     //Write total file size
     fseek(file, 2, SEEK_SET);
@@ -206,7 +208,7 @@ void bmp_palette_colour_set(bmp_t* bmp, uint16_t colour_num, palette_colour_t co
 
 static bool write_header_BITMAPINFOHEADER(const bmp_t* bmp, FILE* file, compression_t compression, size_t image_data_offset)
 {
-    fputs("BM", file);
+    fputs("BM", file);//With 1 reserved byte left alone
 
     //Leave space for the end file size here
     write_integer(file, 0, 4);
@@ -369,4 +371,21 @@ static bool save_bi_rle4(const bmp_t* bmp, FILE* file)
     }
 
     return true;
+}
+
+static size_t get_file_size(FILE* file)
+{
+    if (fseek(file, 0, SEEK_END))
+    {
+        //Fallback to counting bytes in the file
+        rewind(file);
+        size_t file_size = 0;
+
+        while (fgetc(file) != EOF)
+            ++file_size;
+
+        return file_size;
+    }
+    else//SEEK_END worked!
+        return ftell(file);//Return the file size (expected to be less than 2GB)
 }

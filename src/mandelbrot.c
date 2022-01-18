@@ -2,6 +2,8 @@
  * By: John Jekel
 */
 
+//TODO multithread rendering functions (on a bytewise basis to avoid issues)
+
 /* Constants And Defines */
 
 #define ITERATIONS 256//1000
@@ -156,12 +158,9 @@ void mb_destroy_intensities(mb_intensities_t* restrict intensities)
 void mb_render_bw(const mb_intensities_t* restrict intensities, bmp_t* restrict bitmap_to_init)
 {
     bmp_create(bitmap_to_init, intensities->config.x_pixels, intensities->config.y_pixels, BPP_1);
-    /*
-    bmp_create(bitmap_to_init, intensities->config.x_pixels, intensities->config.y_pixels, BPP_4);//To allow for rle4 compression
     bmp_palette_set_size(bitmap_to_init, 2);
-    bmp_palette_colour_set(bitmap_to_init, 0, (palette_colour_t){0, 0, 0});
-    bmp_palette_colour_set(bitmap_to_init, 1, (palette_colour_t){0xFF, 0xFF, 0xFF});
-    */
+    bmp_palette_colour_set(bitmap_to_init, 0, (palette_colour_t){.r = 0, .g = 0, .b = 0, .a = 0});
+    bmp_palette_colour_set(bitmap_to_init, 1, (palette_colour_t){.r = 0xFF, .g = 0xFF, .b = 0xFF, .a = 0});
 
     //TODO make this faster/multithreaded/vectorize
     for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
@@ -182,7 +181,7 @@ void mb_render_grey_8(const mb_intensities_t* restrict intensities, bmp_t* restr
 
     //Simple pallete (maps index to brightness)
     for (uint16_t i = 0; i < 256; ++i)
-        bmp_palette_colour_set(bitmap_to_init, i, (palette_colour_t) {.r = i, .g = i, .b = i});
+        bmp_palette_colour_set(bitmap_to_init, i, (palette_colour_t) {.r = i, .g = i, .b = i, .a = 0});
 
     //TODO make this faster/multithreaded/vectorize
     for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
@@ -245,10 +244,11 @@ void mb_render_colour_8(const mb_intensities_t* restrict intensities, bmp_t* res
     bmp_palette_set_size(bitmap_to_init, 256);
 
     //Simple pallete (maps index to brightness)
-    bmp_palette_colour_set(bitmap_to_init, 0, (palette_colour_t){0, 0, 0});//Special case: Non converge produces zero
+    bmp_palette_colour_set(bitmap_to_init, 0, (palette_colour_t){.r = 0, .g = 0, .b = 0, .a = 0});//Special case: Non converge produces zero
     for (uint16_t i = 1; i < 256; ++i)
     {
-        palette_colour_t colour = {0, 0, 0};
+        palette_colour_t colour;
+        colour.a = 0;
 
         const uint8_t max_iterations = 255;
         const uint8_t band_range = max_iterations / 11;

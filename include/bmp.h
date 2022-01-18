@@ -19,7 +19,7 @@ typedef enum {BPP_1 = 1, BPP_4 = 4, BPP_8 = 8, BPP_16 = 16, BPP_24 = 24} bpp_t;
 
 typedef struct
 {
-    uint8_t r, g, b;
+    uint8_t b, g, r, a;
 } palette_colour_t;
 
 typedef struct

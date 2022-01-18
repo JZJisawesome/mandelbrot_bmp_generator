@@ -9,7 +9,7 @@
 #define ITERATIONS 256//1000
 #define CONVERGE_VALUE 2
 
-#define USE_THREADING//FIXME float is broken for some images when using threading
+#define MBBMP_THREADING//FIXME float is broken for some images when using threading
 
 /* Includes */
 
@@ -22,7 +22,7 @@
 #include <string.h>
 #include <assert.h>
 
-#ifdef USE_THREADING
+#ifdef MBBMP_THREADING
 
 #ifdef __STDC_NO_THREADS__
 #error "C11 threading support required for compiling mandelbrot.c"
@@ -38,19 +38,28 @@
 
 /* Types */
 
-#ifdef USE_THREADING
+#ifdef MBBMP_THREADING
 typedef struct
 {
     uint8_t thread_num;
     mb_intensities_t* intensities;
-} thread_workload_t;
+} intensity_thread_workload_t;
+
+typedef struct
+{
+    uint8_t thread_num;
+    bmp_t* render;
+    const mb_intensities_t* intensities;
+} render_thread_workload_t;
 #endif
 
 /* Variables */
 
+#ifdef MBBMP_THREADING
 static uint16_t max_threads = 1;
 static uint16_t processing_chunks = 4;//So that CPUs aren't just left sitting around
 static atomic_ushort current_threads = 0;
+#endif
 
 /* Static Function Declarations */
 
@@ -60,7 +69,11 @@ static uint16_t mandelbrot_iterations_basic(complex long double c);
 //static __m128i mandelbrot_iterations_sse2_4(__m128 c_real, __m128 c_imag);
 #endif
 
-#ifdef USE_THREADING
+static void intensities_render_normal_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities);//TODO implement
+static void intensities_render_inverted_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities);//More iterations = darker colour
+
+#ifdef MBBMP_THREADING
+static int intensities_render_inverted_8_thread(void* workload_);
 static int generate_intensities_threaded(void* workload_);
 #endif
 
@@ -69,8 +82,10 @@ static int generate_intensities_threaded(void* workload_);
 void mb_set_total_active_threads(uint16_t threads)
 {
     assert(threads > 0);
+#ifdef MBBMP_THREADING
     max_threads = threads;
     processing_chunks = threads * 4;//So that CPUs aren't just left sitting around
+#endif
 }
 
 mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
@@ -80,9 +95,9 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
 
     //TODO use vectorization
 
-#ifdef USE_THREADING
+#ifdef MBBMP_THREADING
     thrd_t threads[processing_chunks];
-    thread_workload_t workloads[processing_chunks];
+    intensity_thread_workload_t workloads[processing_chunks];
 
     for (uint8_t i = 0; i < processing_chunks; ++i)
     {
@@ -183,24 +198,7 @@ void mb_render_grey_8(const mb_intensities_t* restrict intensities, bmp_t* restr
     for (uint16_t i = 0; i < 256; ++i)
         bmp_palette_colour_set(bitmap_to_init, i, (palette_colour_t) {.r = i, .g = i, .b = i, .a = 0});
 
-    //TODO make this faster/multithreaded/vectorize
-    for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
-    {
-        for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
-        {
-            uint32_t value;
-            uint32_t intensity = intensities->intensities[i + (j * intensities->config.x_pixels)];
-
-            if (intensity == ITERATIONS)
-                value = 255;
-            else
-                value = intensity;
-
-            value = 255 - value;
-
-            bmp_px_set_8(bitmap_to_init, i, j, value);
-        }
-    }
+    intensities_render_inverted_8(bitmap_to_init, intensities);
 }
 
 void mb_render_colour(const mb_intensities_t* restrict intensities, bmp_t* restrict bitmap_to_init)
@@ -308,24 +306,7 @@ void mb_render_colour_8(const mb_intensities_t* restrict intensities, bmp_t* res
         bmp_palette_colour_set(bitmap_to_init, i, colour);
     }
 
-    //TODO make this faster/multithreaded/vectorize
-    for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
-    {
-        for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
-        {
-            uint32_t value;
-            uint32_t intensity = intensities->intensities[i + (j * intensities->config.x_pixels)];
-
-            if (intensity == ITERATIONS)
-                value = 255;//value = 0;
-            else
-                value = intensity;
-
-            value = 255 - value;
-
-            bmp_px_set_8(bitmap_to_init, i, j, value);
-        }
-    }
+    intensities_render_inverted_8(bitmap_to_init, intensities);
 }
 
 /* Static Function Implementations */
@@ -360,10 +341,83 @@ static __m128i mandelbrot_iterations_sse2_4(__m128 c_real, __m128 c_imag)
 }
 */
 
-#ifdef USE_THREADING
+static void intensities_render_inverted_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities)//TODO make this faster/multithreaded/vectorize
+{
+#ifdef MBBMP_THREADING
+    thrd_t threads[processing_chunks];
+    render_thread_workload_t workloads[processing_chunks];
+
+    for (uint8_t i = 0; i < processing_chunks; ++i)
+    {
+        //Wait for our time to begin
+        while (current_threads >= max_threads)
+            thrd_yield();
+        ++current_threads;//It's okay if we're not atomic with this comparison after the above since we only increment it here
+
+        workloads[i].thread_num = i;
+        workloads[i].render = render;
+        workloads[i].intensities = intensities;
+        thrd_create(&threads[i], intensities_render_inverted_8_thread, (void*)&workloads[i]);
+    }
+
+    for (uint8_t i = 0; i < processing_chunks; ++i)
+    {
+        thrd_join(threads[i], NULL);
+    }
+#else
+    for (uint16_t i = 0; i < intensities->config.x_pixels; ++i)
+    {
+        for (uint16_t j = 0; j < intensities->config.y_pixels; ++j)
+        {
+            uint32_t value;
+            uint32_t intensity = intensities->intensities[i + (j * intensities->config.x_pixels)];
+
+            if (intensity == ITERATIONS)
+                value = 255;//value = 0;
+            else
+                value = intensity;
+
+            value = 255 - value;
+
+            bmp_px_set_8(render, i, j, value);
+        }
+    }
+#endif
+}
+
+#ifdef MBBMP_THREADING
+static int intensities_render_inverted_8_thread(void* workload_)
+{
+    render_thread_workload_t* workload = (render_thread_workload_t*) workload_;
+
+    const uint16_t thread_x_px = workload->intensities->config.x_pixels / processing_chunks;
+    for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); ++i)
+    {
+        for (uint16_t j = 0; j < workload->intensities->config.y_pixels; ++j)
+        {
+            uint32_t value;
+            uint32_t intensity = workload->intensities->intensities[i + (j * workload->intensities->config.x_pixels)];
+
+            if (intensity == ITERATIONS)
+                value = 255;//value = 0;
+            else
+                value = intensity;
+
+            value = 255 - value;
+
+            bmp_px_set_8(workload->render, i, j, value);
+        }
+    }
+
+    --current_threads;
+    return 0;
+}
+#endif
+
+#ifdef MBBMP_THREADING
 static int generate_intensities_threaded(void* workload_)
 {
-    thread_workload_t* workload = (thread_workload_t*) workload_;
+    intensity_thread_workload_t* workload = (intensity_thread_workload_t*) workload_;
 
     mb_intensities_t* intensities = workload->intensities;
     mb_config_t* config = &intensities->config;

@@ -16,10 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Types */
-
-
-
 /* Static Function Declarations */
 
 static void print_usage_text(void);

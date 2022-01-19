@@ -2,14 +2,12 @@
  * By: John Jekel
 */
 
-//TODO multithread rendering functions (on a bytewise basis to avoid issues)
-
 /* Constants And Defines */
 
 #define ITERATIONS 256//1000
 #define CONVERGE_VALUE 2
 
-#define MBBMP_THREADING//FIXME float is broken for some images when using threading
+#define MBBMP_THREADING
 
 /* Includes */
 
@@ -66,7 +64,7 @@ static atomic_ushort current_threads = 0;
 static uint16_t mandelbrot_iterations_basic(complex double c);
 
 #ifdef __x86_64__
-//static __m128i mandelbrot_iterations_sse2_4(__m128 c_real, __m128 c_imag);
+static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag);
 #endif
 
 static void intensities_render_normal_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities);//TODO implement
@@ -329,17 +327,31 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
     return ITERATIONS;//Failed to converge within ITERATIONS iterations
 }
 
-/*
-static __m128i mandelbrot_iterations_sse2_4(__m128 c_real, __m128 c_imag)
+static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 {
     //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
     //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
-    const __m128 four = _mm_set_ps1(4.0);
+    //const __m128 four = _mm_set_ps1(4.0);
 
-    __m128i increment = _mm_set_epi32(1, 1, 1, 1);
+    //__m128i increment = _mm_set_epi32(1, 1, 1, 1);
 
+    typedef union
+    {
+        double d[2];
+        uint32_t i[2];
+        __m128d vd;
+        __m128i vi;
+    } v_converter;
+
+    v_converter real = {.vd = c_real};
+    v_converter imag = {.vd = c_imag};
+
+    v_converter result;
+    result.i[0] = mandelbrot_iterations_basic(CMPLXF(real.d[0], imag.d[0]));
+    result.i[1] = mandelbrot_iterations_basic(CMPLXF(real.d[1], imag.d[1]));
+
+    return result.vi;
 }
-*/
 
 static void intensities_render_inverted_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities)//TODO make this faster/multithreaded/vectorize
 {
@@ -413,8 +425,6 @@ static int intensities_render_inverted_8_thread(void* workload_)
     return 0;
 }
 #endif
-
-#include <stdio.h>//TESTING
 
 #ifdef MBBMP_THREADING
 static int generate_intensities_threaded(void* workload_)

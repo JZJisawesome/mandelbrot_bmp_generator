@@ -352,6 +352,8 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
     v_converter creal = {.vd = c_real};
     v_converter cimag = {.vd = c_imag};
 
+    //TODO to avoid scalar code as much as possible, pack result into the lower two halfwords AFTER THE LOOP
+
     v_converter result = {.dw = {0, 0}};
 
     v_converter zreal = {.d = {0, 0}};
@@ -364,6 +366,18 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
         v_converter squared_sum = {.vd = _mm_add_pd(zreal_squared.vd, zimag_squared.vd)};
 
         //TODO vectorize the second part of these comparisons and just don't bother with the first
+
+        //This is slower?
+        /*
+        v_converter compare = {.vd = _mm_cmpge_pd(squared_sum.vd, four)};
+
+        if (incrementor.h[0] && compare.dw[0])
+            incrementor.h[0] = 0;
+
+        if (incrementor.h[1] && compare.dw[1])
+            incrementor.h[1] = 0;
+        */
+
         if (incrementor.h[0] && (squared_sum.d[0] >= (CONVERGE_VALUE * CONVERGE_VALUE)))//Check if abs(z) >= CONVERGE_VALUE
             incrementor.h[0] = 0;
 

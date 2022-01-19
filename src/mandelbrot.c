@@ -31,6 +31,7 @@
 #endif
 
 #ifdef __x86_64__
+//#define MBBMP_SSE2
 #include <emmintrin.h>
 #endif
 
@@ -63,7 +64,7 @@ static atomic_ushort current_threads = 0;
 
 static uint16_t mandelbrot_iterations_basic(complex double c);
 
-#ifdef __x86_64__
+#ifdef MBBMP_SSE2
 static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag);
 #endif
 
@@ -120,7 +121,7 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
     double x = config->min_x;
 
 /*
-#ifdef __x86_64__
+#ifdef MBBMP_SSE2
     //TODO
 
     for (uint16_t i = 0; i < config->x_pixels; i += 4)
@@ -327,6 +328,7 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
     return ITERATIONS;//Failed to converge within ITERATIONS iterations
 }
 
+#ifdef MBBMP_SSE2
 static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 {
     //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
@@ -338,7 +340,9 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
     typedef union
     {
         double d[2];
-        uint32_t i[2];
+        uint16_t h[8];
+        uint32_t i[4];
+        uint64_t dw[2];
         __m128d vd;
         __m128i vi;
     } v_converter;
@@ -346,12 +350,27 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
     v_converter real = {.vd = c_real};
     v_converter imag = {.vd = c_imag};
 
-    v_converter result;
-    result.i[0] = mandelbrot_iterations_basic(CMPLXF(real.d[0], imag.d[0]));
-    result.i[1] = mandelbrot_iterations_basic(CMPLXF(real.d[1], imag.d[1]));
+    v_converter result = {.dw = {0, 0}};
+
+    /*
+    v_converter zreal = {.d = {0, 0}};
+    v_converter zimag = {.d = {0, 0}};
+    v_converter incrementor = {.h = {1, 1, 0, 0, 0, 0, 0, 0}};
+    for (uint_fast16_t i = 0; i < ITERATIONS; ++i)
+    {
+        //TODO
+        zreal.d[0] = zreal.d[0] * zreal.d[0]
+    }
+    */
+
+    //Cheap method
+    result.h[0] = mandelbrot_iterations_basic(CMPLXF(real.d[0], imag.d[0]));
+    result.h[1] = mandelbrot_iterations_basic(CMPLXF(real.d[1], imag.d[1]));
+
 
     return result.vi;
 }
+#endif
 
 static void intensities_render_inverted_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities)//TODO make this faster/multithreaded/vectorize
 {
@@ -452,17 +471,50 @@ static int generate_intensities_threaded(void* workload_)
 
     //TODO use vector hardware
 
+#ifdef MBBMP_SSE2
+    for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); i += 2)
+    {
+        double y = config->min_y;
+
+        for (uint16_t j = 0; j < config->y_pixels; ++j)
+        {
+            typedef union
+            {
+                double d[2];
+                uint16_t h[8];
+                uint32_t i[4];
+                uint64_t dw[2];
+                __m128d vd;
+                __m128i vi;
+            } v_converter;
+
+            v_converter real = {.d = {x, x + x_step}};
+            v_converter imag = {.d = {y, y}};
+
+            v_converter result = {.vi = mandelbrot_iterations_sse2_4(real.vd, imag.vd)};
+
+            //intensities->intensities[i + (j * config->x_pixels)] = result.h[0];
+            //intensities->intensities[i + ((j + 1) * config->x_pixels)] = result.h[1];
+            _mm_storeu_si32(&intensities->intensities[i + (j * config->x_pixels)], result.vi);
+
+            y += y_step;
+        }
+
+        x += x_step * 2;
+    }
+#else
     for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); ++i)
     {
         double y = config->min_y;
+
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
             intensities->intensities[i + (j * config->x_pixels)] = mandelbrot_iterations_basic(CMPLXF(x, y));
             y += y_step;
         }
-
         x += x_step;
     }
+#endif
 
     --current_threads;
     return 0;

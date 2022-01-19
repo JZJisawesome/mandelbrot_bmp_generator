@@ -63,7 +63,7 @@ static atomic_ushort current_threads = 0;
 
 /* Static Function Declarations */
 
-static uint16_t mandelbrot_iterations_basic(complex mbfp_t c);
+static uint16_t mandelbrot_iterations_basic(complex double c);
 
 #ifdef __x86_64__
 //static __m128i mandelbrot_iterations_sse2_4(__m128 c_real, __m128 c_imag);
@@ -116,10 +116,10 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
         thrd_join(threads[i], NULL);
     }
 #else
-    const mbfp_t x_step = (config->max_x - config->min_x) / config->x_pixels;
-    const mbfp_t y_step = (config->max_y - config->min_y) / config->y_pixels;
+    const double x_step = (config->max_x - config->min_x) / config->x_pixels;
+    const double y_step = (config->max_y - config->min_y) / config->y_pixels;
 
-    mbfp_t x = config->min_x;
+    double x = config->min_x;
 
 /*
 #ifdef __x86_64__
@@ -127,7 +127,7 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
 
     for (uint16_t i = 0; i < config->x_pixels; i += 4)
     {
-        mbfp_t y = config->min_y;
+        double y = config->min_y;
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
             __m128 c_real = _mm_set_ps();
@@ -148,7 +148,7 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
 
     for (uint16_t i = 0; i < config->x_pixels; ++i)
     {
-        mbfp_t y = config->min_y;
+        double y = config->min_y;
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
             intensities->intensities[i + (j * config->x_pixels)] = mandelbrot_iterations_basic(CMPLXF(x, y));
@@ -311,14 +311,14 @@ void mb_render_colour_8(const mb_intensities_t* restrict intensities, bmp_t* res
 
 /* Static Function Implementations */
 
-static uint16_t mandelbrot_iterations_basic(complex mbfp_t c)
+static uint16_t mandelbrot_iterations_basic(complex double c)
 {
-    complex mbfp_t z = 0;//z_0 = 0
+    complex double z = 0;//z_0 = 0
 
     for (uint_fast16_t i = 0; i < ITERATIONS; ++i)
     {
-        mbfp_t real = creal(z);
-        mbfp_t imag = cimag(z);
+        double real = creal(z);
+        double imag = cimag(z);
 
         if (((real * real) + (imag * imag)) >= (CONVERGE_VALUE * CONVERGE_VALUE))//Check if abs(z) >= CONVERGE_VALUE
             return i;
@@ -414,6 +414,8 @@ static int intensities_render_inverted_8_thread(void* workload_)
 }
 #endif
 
+#include <stdio.h>//TESTING
+
 #ifdef MBBMP_THREADING
 static int generate_intensities_threaded(void* workload_)
 {
@@ -422,18 +424,27 @@ static int generate_intensities_threaded(void* workload_)
     mb_intensities_t* intensities = workload->intensities;
     mb_config_t* config = &intensities->config;
 
-    //TODO fix bug when using low precision mbfp_t and threading
-    const uint16_t thread_x_px = config->x_pixels / processing_chunks;
-    const mbfp_t thread_x_range = (config->max_x - config->min_x) / processing_chunks;
+    const uint16_t thread_x_px = config->x_pixels / processing_chunks;//TODO rounding?
 
-    const mbfp_t x_step = (config->max_x - config->min_x) / config->x_pixels;
-    const mbfp_t y_step = (config->max_y - config->min_y) / config->y_pixels;
+    /* This line here causes lots of issues.
+     * When using low-precision numbers (floats), the subtraction done here causes a severe loss of precision that
+     * leads to rendering glitches. While this can be mitigated by adding x_step to config->min_x until we reach the
+     * desired spot, that is sort of a hack and is not efficient enough to be worth it.
+     * We thus use doubles everywhere in mandelbrot_bmp_generator as they are a good balance of precision
+     * (comparing with floats/long doubles) and can more easily be vectorized
+    */
+    const double thread_x_range = (config->max_x - config->min_x) / processing_chunks;
+
+    const double x_step = (config->max_x - config->min_x) / config->x_pixels;
+    const double y_step = (config->max_y - config->min_y) / config->y_pixels;
+
+    double x = config->min_x + (thread_x_range * workload->thread_num);
 
     //TODO use vector hardware
-    mbfp_t x = config->min_x + (thread_x_range * workload->thread_num) - (10 * x_step);
+
     for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); ++i)
     {
-        mbfp_t y = config->min_y;
+        double y = config->min_y;
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
             intensities->intensities[i + (j * config->x_pixels)] = mandelbrot_iterations_basic(CMPLXF(x, y));

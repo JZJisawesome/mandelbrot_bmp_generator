@@ -106,18 +106,11 @@ static int32_t parse_file(const char* file_name)
         uint16_t threads;
         char type_string[16];
         char file_name[4096];//Max most/all OSs support
-        long double min_x, max_x, min_y, max_y;
 
-        int result = fscanf(file, "%hu %hu %Lf %Lf %Lf %Lf %hu %15s %1023s \n",
+        int result = fscanf(file, "%hu %hu %lf %lf %lf %lf %hu %15s %1023s \n",
                             &config.x_pixels, &config.y_pixels,
-                            &min_x, &max_x, &min_y, &max_y,
+                            &config.min_x, &config.max_x, &config.min_y, &config.max_y,
                             &threads, type_string, file_name);
-
-        //In case mbfp_t is not a long double
-        config.min_x = (mbfp_t)min_x;
-        config.max_x = (mbfp_t)max_x;
-        config.min_y = (mbfp_t)min_y;
-        config.max_y = (mbfp_t)max_y;
 
         if (result == EOF)
             break;

@@ -29,7 +29,7 @@ typedef struct
 /* Static Function Declarations */
 
 static uint16_t prompt_for_uint(const char* str);
-static mbfp_t prompt_for_real(const char* str);
+static double prompt_for_real(const char* str);
 static char* prompt_for_str(const char* str);
 static bool prompt_for_yn(const char* str);
 static int generate_intensities_async(void* interactive_intensity_gen_struct);
@@ -144,18 +144,18 @@ static uint16_t prompt_for_uint(const char* str)
     return (uint16_t) input_int;
 }
 
-static mbfp_t prompt_for_real(const char* str)
+static double prompt_for_real(const char* str)
 {
     const size_t input_buffer_size = 64;//Enough precision for 128 bit floats
     char input_buffer[input_buffer_size];
-    long double input_ld;
+    double input_real;
 
     fputs(str, stdout);
     fflush(stdout);
     fgets(input_buffer, input_buffer_size, stdin);
-    input_ld = strtold(input_buffer, NULL);
+    input_real = strtod(input_buffer, NULL);
 
-    return (mbfp_t) input_ld;
+    return input_real;
 }
 
 static char* prompt_for_str(const char* str)

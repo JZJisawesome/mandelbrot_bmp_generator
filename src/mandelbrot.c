@@ -31,7 +31,7 @@
 #endif
 
 #ifdef __x86_64__
-//#define MBBMP_SSE2
+#define MBBMP_SSE2
 #include <emmintrin.h>
 #endif
 
@@ -334,6 +334,8 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
     //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
     //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
     //const __m128 four = _mm_set_ps1(4.0);
+    const __m128d four = _mm_set_pd1(4);
+    const __m128d two = _mm_set_pd1(2);
 
     //__m128i increment = _mm_set_epi32(1, 1, 1, 1);
 
@@ -347,25 +349,63 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
         __m128i vi;
     } v_converter;
 
-    v_converter real = {.vd = c_real};
-    v_converter imag = {.vd = c_imag};
+    v_converter creal = {.vd = c_real};
+    v_converter cimag = {.vd = c_imag};
 
     v_converter result = {.dw = {0, 0}};
 
-    /*
     v_converter zreal = {.d = {0, 0}};
     v_converter zimag = {.d = {0, 0}};
     v_converter incrementor = {.h = {1, 1, 0, 0, 0, 0, 0, 0}};
     for (uint_fast16_t i = 0; i < ITERATIONS; ++i)
     {
-        //TODO
-        zreal.d[0] = zreal.d[0] * zreal.d[0]
-    }
-    */
+        v_converter zreal_squared = {.vd = _mm_mul_pd(zreal.vd, zreal.vd)};
+        v_converter zimag_squared = {.vd = _mm_mul_pd(zimag.vd, zimag.vd)};
+        v_converter squared_sum = {.vd = _mm_add_pd(zreal_squared.vd, zimag_squared.vd)};
 
-    //Cheap method
-    result.h[0] = mandelbrot_iterations_basic(CMPLXF(real.d[0], imag.d[0]));
-    result.h[1] = mandelbrot_iterations_basic(CMPLXF(real.d[1], imag.d[1]));
+        //TODO vectorize the second part of these comparisons and just don't bother with the first
+        if (incrementor.h[0] && (squared_sum.d[0] >= (CONVERGE_VALUE * CONVERGE_VALUE)))//Check if abs(z) >= CONVERGE_VALUE
+            incrementor.h[0] = 0;
+
+        if (incrementor.h[1] && (squared_sum.d[1] >= (CONVERGE_VALUE * CONVERGE_VALUE)))//Check if abs(z) >= CONVERGE_VALUE
+            incrementor.h[1] = 0;
+
+        if (!incrementor.h[0] && !incrementor.h[1])
+            return result.vi;
+
+        //Increment result appropriatly
+        result.vi = _mm_add_epi16(result.vi, incrementor.vi);
+        //result.h[0] += incrementor.h[0];
+        //result.h[1] += incrementor.h[1];
+
+        //Get next entries
+        __m128d temp_zreal = _mm_add_pd(_mm_sub_pd(zreal_squared.vd, zimag_squared.vd), c_real);
+        //double temp0 = (zreal.d[0] * zreal.d[0]) - (zimag.d[0] * zimag.d[0]) + creal.d[0];
+        //double temp1 = (zreal.d[1] * zreal.d[1]) - (zimag.d[1] * zimag.d[1]) + creal.d[1];
+        zimag.vd = _mm_add_pd(c_imag, _mm_mul_pd(two, _mm_mul_pd(zreal.vd, zimag.vd)));
+        zreal.vd = temp_zreal;
+        //zreal.d[0] = temp0;
+        //zreal.d[1] = temp1;
+
+        /*
+        double temp0 = (zreal.d[0] * zreal.d[0]) - (zimag.d[0] * zimag.d[0]) + creal.d[0];
+        zimag.d[0] = cimag.d[0] + (2 * zreal.d[0] * zimag.d[0]);
+        zreal.d[0] = temp0;
+        double temp1 = (zreal.d[1] * zreal.d[1]) - (zimag.d[1] * zimag.d[1]) + creal.d[1];
+        zimag.d[1] = cimag.d[1] + (2 * zreal.d[1] * zimag.d[1]);
+        zreal.d[1] = temp1;
+        */
+    }
+    if (incrementor.h[0])
+        result.h[0] = ITERATIONS;
+    if (incrementor.h[1])
+        result.h[1] = ITERATIONS;
+
+    //Fake method
+    /*
+    result.h[0] = mandelbrot_iterations_basic(CMPLXF(creal.d[0], cimag.d[0]));
+    result.h[1] = mandelbrot_iterations_basic(CMPLXF(creal.d[1], cimag.d[1]));
+    */
 
 
     return result.vi;

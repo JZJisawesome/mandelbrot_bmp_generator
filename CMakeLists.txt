@@ -19,7 +19,9 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_C_FLAGS "-Wall -Wextra -g3")
+#TESTING
+set(CMAKE_C_FLAGS "-Wall -Wextra -g3 -mavx")
+#set(CMAKE_C_FLAGS "-Wall -Wextra -g3")
 set(CMAKE_C_FLAGS_DEBUG "-Og")
 set(CMAKE_C_FLAGS_RELEASE "-Ofast -flto=auto -fuse-linker-plugin -floop-nest-optimize -fipa-pta -fno-semantic-interposition -fdevirtualize-at-ltrans -fno-plt -fstdarg-opt -frename-registers -fweb -ftree-vectorize")
 

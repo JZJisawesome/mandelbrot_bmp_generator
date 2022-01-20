@@ -9,6 +9,8 @@
 
 #define MBBMP_THREADING
 
+#define MBBMP_AVX//TESTING
+
 /* Includes */
 
 #include "mandelbrot.h"
@@ -31,8 +33,20 @@
 #endif
 
 #ifdef __x86_64__
+
 #define MBBMP_SSE2
 #include <emmintrin.h>
+
+#ifdef MBBMP_AVX
+#undef MBBMP_SSE2
+#include <immintrin.h>
+#endif
+
+#else
+
+#undef MBBMP_SSE2
+#undef MBBMP_AVX
+
 #endif
 
 /* Types */
@@ -65,7 +79,11 @@ static atomic_ushort current_threads = 0;
 static uint16_t mandelbrot_iterations_basic(complex double c);
 
 #ifdef MBBMP_SSE2
-static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag);
+static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag);
+#endif
+
+#ifdef MBBMP_AVX
+static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag);
 #endif
 
 static void intensities_render_normal_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities);//TODO implement
@@ -132,7 +150,7 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
             __m128 c_real = _mm_set_ps();
             __m128 c_imag;
 
-            __m128i results = mandelbrot_iterations_sse2_4(c_real, c_imag);
+            __m128i results = mandelbrot_iterations_sse2_2(c_real, c_imag);
 
             uint16_t results_to_keep[16]
 
@@ -329,7 +347,7 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
 }
 
 #ifdef MBBMP_SSE2
-static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
+static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag)
 {
     //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
     //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
@@ -340,7 +358,7 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 
     union
     {
-        uint64_t hw[2];
+        uint16_t hw[8];
         uint64_t dw[2];
         __m128i v;
     } result = {.v = zero_i};
@@ -362,6 +380,7 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
         bool at_least_one_not_converged = (bool)_mm_movemask_epi8(compare);
         if (!at_least_one_not_converged)
         {
+            //Pack the two 64 bit values into the lower 32 bits//TODO do this faster
             result.hw[0] = result.dw[0];
             result.hw[1] = result.dw[1];
             return result.v;
@@ -377,9 +396,79 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
         result.v = _mm_add_epi64(result.v, incrementor);
     }
 
-    //Pack the 64 bit values into the lower 32 bits
+    //Pack the 64 bit values into the lower 32 bits//TODO do this faster
     result.hw[0] = result.dw[0];
     result.hw[1] = result.dw[1];
+    return result.v;
+}
+#endif
+
+#ifdef MBBMP_AVX
+static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
+{
+    const __m256d four = _mm256_set1_pd(4.0);
+    const __m256d two = _mm256_set1_pd(2.0);
+    const __m256i one_i = _mm256_set1_epi64x(1);
+    const __m256i zero_i = _mm256_set1_epi64x(0);
+
+    union
+    {
+        uint16_t hw[16];
+        uint64_t dw[4];
+        __m256i v;
+    } result = {.v = zero_i};
+
+    __m256d z_real = _mm256_set1_pd(0);
+    __m256d z_imag = _mm256_set1_pd(0);
+
+    for (uint_fast16_t i = 0; i < ITERATIONS; ++i)
+    {
+        //Calculate some values that are used below
+        __m256d z_real_squared = _mm256_mul_pd(z_real, z_real);
+        __m256d z_imag_squared = _mm256_mul_pd(z_imag, z_imag);
+
+        //Check if the modulus of each z < the converge value of 2 (aka that they have converged)
+        //We do this faster by doing (z_real * z_real) + (z_imag * z_imag) < (2 * 2)
+        __m256d squared_sum = _mm256_add_pd(z_real_squared, z_imag_squared);
+        __m256d compare = _mm256_cmp_pd(squared_sum, four, _CMP_LT_OQ);
+
+        //If both complex numbers have converged (entire vector is 0), return early
+        bool at_least_one_not_converged = (bool)_mm256_movemask_pd(compare);
+        if (!at_least_one_not_converged)
+        {
+            //Pack the two 64 bit values into the lower 32 bits//TODO do this faster
+            result.hw[0] = result.dw[0];
+            result.hw[1] = result.dw[1];
+            result.hw[2] = result.dw[2];
+            result.hw[3] = result.dw[3];
+            return result.v;
+        }
+
+        //Get next entries
+        __m256d temp_zreal = _mm256_add_pd(_mm256_sub_pd(z_real_squared, z_imag_squared), c_real);
+        z_imag = _mm256_add_pd(c_imag, _mm256_mul_pd(two, _mm256_mul_pd(z_real, z_imag)));
+        z_real = temp_zreal;
+
+        //Increment the corresponding count only if we haven't converged yet
+        __m256i incrementor = (__m256i)_mm256_and_pd(compare, (__m256d)one_i);//If a number hasn't converged, we will increment it's count
+
+        //Must add top and bottom seperatly
+        //result.v = _mm256_add_epi64(result.v, incrementor);//Requires AVX2
+        __m128i lower_result = _mm256_extractf128_si256(result.v, 0);
+        __m128i upper_result = _mm256_extractf128_si256(result.v, 1);
+        __m128i lower_incrementor = _mm256_extractf128_si256(incrementor, 0);
+        __m128i upper_incrementor = _mm256_extractf128_si256(incrementor, 1);
+        __m128i lower_sum = _mm_add_epi64(lower_result, lower_incrementor);
+        __m128i upper_sum = _mm_add_epi64(upper_result, upper_incrementor);
+        result.v = _mm256_castsi128_si256(lower_sum);
+        result.v = _mm256_insertf128_si256(result.v, upper_sum, 1);
+    }
+
+    //Pack the two 64 bit values into the lower 32 bits//TODO do this faster
+    result.hw[0] = result.dw[0];
+    result.hw[1] = result.dw[1];
+    result.hw[2] = result.dw[2];
+    result.hw[3] = result.dw[3];
     return result.v;
 }
 #endif
@@ -481,7 +570,28 @@ static int generate_intensities_threaded(void* workload_)
 
     double x = config->min_x + (thread_x_range * workload->thread_num);
 
-#ifdef MBBMP_SSE2
+#ifdef MBBMP_AVX
+    //TODO what if not an number of pixels divisible by 4?
+    for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); i += 4)
+    {
+        double y = config->min_y;
+
+        for (uint16_t j = 0; j < config->y_pixels; ++j)
+        {
+            //Perform mandelbrot iterations on four values at once!
+            __m256d real = _mm256_set_pd(x + (3 * x_step), x + (2 * x_step), x + x_step, x);
+            __m256d imag = _mm256_set1_pd(y);
+
+            //The results are stored in the lower 64 bits (16 bits each) and so can be directly stored
+            __m128i result = _mm256_extractf128_si256(mandelbrot_iterations_avx_4(real, imag), 0);
+            _mm_storeu_si64(&intensities->intensities[i + (j * config->x_pixels)], result);
+
+            y += y_step;
+        }
+
+        x += x_step * 4;
+    }
+#elif defined(MBBMP_SSE2)
     //TODO what if not an even number of pixels?
     for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); i += 2)
     {
@@ -490,11 +600,11 @@ static int generate_intensities_threaded(void* workload_)
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
             //Perform mandelbrot iterations on two values at once!
-            __m128d real = _mm_set_pd(x, x + x_step);
+            __m128d real = _mm_set_pd(x + x_step, x);
             __m128d imag = _mm_set_pd1(y);
 
             //The results are stored in the lower 32 bits (16 bits each) and so can be directly stored
-            __m128i result = mandelbrot_iterations_sse2_4(real, imag);
+            __m128i result = mandelbrot_iterations_sse2_2(real, imag);
             _mm_storeu_si32(&intensities->intensities[i + (j * config->x_pixels)], result);
 
             y += y_step;

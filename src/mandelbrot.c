@@ -328,6 +328,8 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
     return ITERATIONS;//Failed to converge within ITERATIONS iterations
 }
 
+#include <stdio.h>//TESTING
+
 #ifdef MBBMP_SSE2
 static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 {
@@ -343,37 +345,36 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 
     //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
     //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
-    //const __m128 four = _mm_set_ps1(4.0);
     const __m128d four = _mm_set_pd1(4);
     const __m128d two = _mm_set_pd1(2);
-    const v_converter one_i = {.vi = _mm_set1_epi64x(1)};
-
-    //__m128i increment = _mm_set_epi32(1, 1, 1, 1);
-
-    v_converter creal = {.vd = c_real};
-    v_converter cimag = {.vd = c_imag};
+    const __m128i one_i = _mm_set1_epi64x(1);
+    const __m128i zero_i = _mm_set1_epi64x(0);
 
     //TODO to avoid scalar code as much as possible, pack result into the lower two halfwords AFTER THE LOOP
 
-    v_converter result = {.dw = {0, 0}};
+    v_converter result = {.vi = zero_i};
 
-    v_converter zreal = {.d = {0, 0}};
-    v_converter zimag = {.d = {0, 0}};
+    __m128d z_real = _mm_set_pd1(0);
+    __m128d z_imag = _mm_set_pd1(0);
     //v_converter incrementor = {.h = {1, 1, 0, 0, 0, 0, 0, 0}};
-    v_converter incrementor = {.dw = {1, 1}};
+    v_converter incrementor = {.vi = one_i};
     for (uint_fast16_t i = 0; i < ITERATIONS; ++i)
     {
-        v_converter zreal_squared = {.vd = _mm_mul_pd(zreal.vd, zreal.vd)};
-        v_converter zimag_squared = {.vd = _mm_mul_pd(zimag.vd, zimag.vd)};
-        v_converter squared_sum = {.vd = _mm_add_pd(zreal_squared.vd, zimag_squared.vd)};
+        __m128d z_real_squared = _mm_mul_pd(z_real, z_real);
+        __m128d z_imag_squared = _mm_mul_pd(z_imag, z_imag);
+        __m128d squared_sum = _mm_add_pd(z_real_squared, z_imag_squared);
 
-        v_converter compare = {.vd = _mm_cmplt_pd(squared_sum.vd, four)};
+        //Check if the modulus of z < the converge value of 2
+        //We do this faster by doing (z_real * z_real) + (z_imag * z_imag) < (2 * 2)
+        __m128d compare = _mm_cmplt_pd(squared_sum, four);
 
-        //TODO fix weird graphical glitches
-        //incrementor.vd = _mm_and_pd(compare.vd, one_i.vd);
-        incrementor.vd = _mm_and_pd(incrementor.vd, _mm_and_pd(compare.vd, one_i.vd));
+        incrementor.vd = _mm_and_pd(compare, _mm_castsi128_pd(one_i));//If a number
+        //incrementor.vd = _mm_and_pd(incrementor.vd, _mm_and_pd(compare, _mm_castsi128_pd(one_i)));
 
-        if (!incrementor.dw[0] && !incrementor.dw[1])
+        //TODO is there a faster way of doing this?
+        //if (!incrementor.dw[0] && !incrementor.dw[1])
+        //if (!_mm_movemask_epi8(_mm_cmpeq_epi8(incrementor.vi, zero_i)))
+        if (!_mm_movemask_epi8(_mm_castpd_si128(compare)))
         {
             uint64_t temp0 = result.dw[0], temp1 = result.dw[1];
 
@@ -384,61 +385,21 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 
         result.vi = _mm_add_epi64(result.vi, incrementor.vi);
 
-        //Old
-        /*
-        if (incrementor.h[0] && (squared_sum.d[0] >= (CONVERGE_VALUE * CONVERGE_VALUE)))//Check if abs(z) >= CONVERGE_VALUE
-            incrementor.h[0] = 0;
-
-        if (incrementor.h[1] && (squared_sum.d[1] >= (CONVERGE_VALUE * CONVERGE_VALUE)))//Check if abs(z) >= CONVERGE_VALUE
-            incrementor.h[1] = 0;
-
-
-        if (!incrementor.h[0] && !incrementor.h[1])
-            return result.vi;
-
-
-
-        //Increment result appropriatly
-        result.vi = _mm_add_epi16(result.vi, incrementor.vi);
-        //result.h[0] += incrementor.h[0];
-        //result.h[1] += incrementor.h[1];
-        */
-
         //Get next entries
-        __m128d temp_zreal = _mm_add_pd(_mm_sub_pd(zreal_squared.vd, zimag_squared.vd), c_real);
-        //double temp0 = (zreal.d[0] * zreal.d[0]) - (zimag.d[0] * zimag.d[0]) + creal.d[0];
-        //double temp1 = (zreal.d[1] * zreal.d[1]) - (zimag.d[1] * zimag.d[1]) + creal.d[1];
-        zimag.vd = _mm_add_pd(c_imag, _mm_mul_pd(two, _mm_mul_pd(zreal.vd, zimag.vd)));
-        zreal.vd = temp_zreal;
-        //zreal.d[0] = temp0;
-        //zreal.d[1] = temp1;
-
-        /*
-        double temp0 = (zreal.d[0] * zreal.d[0]) - (zimag.d[0] * zimag.d[0]) + creal.d[0];
-        zimag.d[0] = cimag.d[0] + (2 * zreal.d[0] * zimag.d[0]);
-        zreal.d[0] = temp0;
-        double temp1 = (zreal.d[1] * zreal.d[1]) - (zimag.d[1] * zimag.d[1]) + creal.d[1];
-        zimag.d[1] = cimag.d[1] + (2 * zreal.d[1] * zimag.d[1]);
-        zreal.d[1] = temp1;
-        */
+        __m128d temp_zreal = _mm_add_pd(_mm_sub_pd(z_real_squared, z_imag_squared), c_real);
+        z_imag = _mm_add_pd(c_imag, _mm_mul_pd(two, _mm_mul_pd(z_real, z_imag)));
+        z_real = temp_zreal;
     }
-    //Removed this for testing
+
     if (incrementor.dw[0])
         result.h[0] = ITERATIONS;
     else
-        result.h[0] = incrementor.dw[0];
+        result.h[0] = result.dw[0];
 
     if (incrementor.dw[1])
         result.h[1] = ITERATIONS;
     else
-        result.h[1] = incrementor.dw[1];
-
-    //Fake method
-    /*
-    result.h[0] = mandelbrot_iterations_basic(CMPLXF(creal.d[0], cimag.d[0]));
-    result.h[1] = mandelbrot_iterations_basic(CMPLXF(creal.d[1], cimag.d[1]));
-    */
-
+        result.h[1] = result.dw[1];
 
     return result.vi;
 }
@@ -568,6 +529,15 @@ static int generate_intensities_threaded(void* workload_)
             //intensities->intensities[i + (j * config->x_pixels)] = result.h[0];
             //intensities->intensities[i + ((j + 1) * config->x_pixels)] = result.h[1];
             _mm_storeu_si32(&intensities->intensities[i + (j * config->x_pixels)], result.vi);
+
+            //TESTING
+            /*
+            uint16_t correct0 = mandelbrot_iterations_basic(CMPLXF(x, y));
+            uint16_t correct1 = mandelbrot_iterations_basic(CMPLXF(x + x_step, y));
+
+            if ((result.h[0] != correct0) || (result.h[1] != correct1))
+                printf("At %u %u, %u %u should have been %u %u\n", i, j, result.h[0], result.h[1], correct0, correct1);
+            */
 
             y += y_step;
         }

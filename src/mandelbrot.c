@@ -331,14 +331,6 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
 #ifdef MBBMP_SSE2
 static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 {
-    //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
-    //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
-    //const __m128 four = _mm_set_ps1(4.0);
-    const __m128d four = _mm_set_pd1(4);
-    const __m128d two = _mm_set_pd1(2);
-
-    //__m128i increment = _mm_set_epi32(1, 1, 1, 1);
-
     typedef union
     {
         double d[2];
@@ -349,6 +341,15 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
         __m128i vi;
     } v_converter;
 
+    //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
+    //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
+    //const __m128 four = _mm_set_ps1(4.0);
+    const __m128d four = _mm_set_pd1(4);
+    const __m128d two = _mm_set_pd1(2);
+    const v_converter one_i = {.vi = _mm_set1_epi64x(1)};
+
+    //__m128i increment = _mm_set_epi32(1, 1, 1, 1);
+
     v_converter creal = {.vd = c_real};
     v_converter cimag = {.vd = c_imag};
 
@@ -358,39 +359,50 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 
     v_converter zreal = {.d = {0, 0}};
     v_converter zimag = {.d = {0, 0}};
-    v_converter incrementor = {.h = {1, 1, 0, 0, 0, 0, 0, 0}};
+    //v_converter incrementor = {.h = {1, 1, 0, 0, 0, 0, 0, 0}};
+    v_converter incrementor = {.dw = {1, 1}};
     for (uint_fast16_t i = 0; i < ITERATIONS; ++i)
     {
         v_converter zreal_squared = {.vd = _mm_mul_pd(zreal.vd, zreal.vd)};
         v_converter zimag_squared = {.vd = _mm_mul_pd(zimag.vd, zimag.vd)};
         v_converter squared_sum = {.vd = _mm_add_pd(zreal_squared.vd, zimag_squared.vd)};
 
-        //TODO vectorize the second part of these comparisons and just don't bother with the first
+        v_converter compare = {.vd = _mm_cmplt_pd(squared_sum.vd, four)};
 
-        //This is slower?
+        //TODO fix weird graphical glitches
+        //incrementor.vd = _mm_and_pd(compare.vd, one_i.vd);
+        incrementor.vd = _mm_and_pd(incrementor.vd, _mm_and_pd(compare.vd, one_i.vd));
+
+        if (!incrementor.dw[0] && !incrementor.dw[1])
+        {
+            uint64_t temp0 = result.dw[0], temp1 = result.dw[1];
+
+            result.h[0] = temp0;
+            result.h[1] = temp1;
+            return result.vi;
+        }
+
+        result.vi = _mm_add_epi64(result.vi, incrementor.vi);
+
+        //Old
         /*
-        v_converter compare = {.vd = _mm_cmpge_pd(squared_sum.vd, four)};
-
-        if (incrementor.h[0] && compare.dw[0])
-            incrementor.h[0] = 0;
-
-        if (incrementor.h[1] && compare.dw[1])
-            incrementor.h[1] = 0;
-        */
-
         if (incrementor.h[0] && (squared_sum.d[0] >= (CONVERGE_VALUE * CONVERGE_VALUE)))//Check if abs(z) >= CONVERGE_VALUE
             incrementor.h[0] = 0;
 
         if (incrementor.h[1] && (squared_sum.d[1] >= (CONVERGE_VALUE * CONVERGE_VALUE)))//Check if abs(z) >= CONVERGE_VALUE
             incrementor.h[1] = 0;
 
+
         if (!incrementor.h[0] && !incrementor.h[1])
             return result.vi;
+
+
 
         //Increment result appropriatly
         result.vi = _mm_add_epi16(result.vi, incrementor.vi);
         //result.h[0] += incrementor.h[0];
         //result.h[1] += incrementor.h[1];
+        */
 
         //Get next entries
         __m128d temp_zreal = _mm_add_pd(_mm_sub_pd(zreal_squared.vd, zimag_squared.vd), c_real);
@@ -410,10 +422,16 @@ static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
         zreal.d[1] = temp1;
         */
     }
-    if (incrementor.h[0])
+    //Removed this for testing
+    if (incrementor.dw[0])
         result.h[0] = ITERATIONS;
-    if (incrementor.h[1])
+    else
+        result.h[0] = incrementor.dw[0];
+
+    if (incrementor.dw[1])
         result.h[1] = ITERATIONS;
+    else
+        result.h[1] = incrementor.dw[1];
 
     //Fake method
     /*

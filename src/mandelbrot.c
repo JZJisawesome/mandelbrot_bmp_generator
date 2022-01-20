@@ -328,80 +328,59 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
     return ITERATIONS;//Failed to converge within ITERATIONS iterations
 }
 
-#include <stdio.h>//TESTING
-
 #ifdef MBBMP_SSE2
 static __m128i mandelbrot_iterations_sse2_4(__m128d c_real, __m128d c_imag)
 {
-    typedef union
-    {
-        double d[2];
-        uint16_t h[8];
-        uint32_t i[4];
-        uint64_t dw[2];
-        __m128d vd;
-        __m128i vi;
-    } v_converter;
-
     //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
     //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
-    const __m128d four = _mm_set_pd1(4);
-    const __m128d two = _mm_set_pd1(2);
+    const __m128d four = _mm_set_pd1(4.0);
+    const __m128d two = _mm_set_pd1(2.0);
     const __m128i one_i = _mm_set1_epi64x(1);
     const __m128i zero_i = _mm_set1_epi64x(0);
 
-    //TODO to avoid scalar code as much as possible, pack result into the lower two halfwords AFTER THE LOOP
-
-    v_converter result = {.vi = zero_i};
+    union
+    {
+        uint64_t hw[2];
+        uint64_t dw[2];
+        __m128i v;
+    } result = {.v = zero_i};
 
     __m128d z_real = _mm_set_pd1(0);
     __m128d z_imag = _mm_set_pd1(0);
-    //v_converter incrementor = {.h = {1, 1, 0, 0, 0, 0, 0, 0}};
-    v_converter incrementor = {.vi = one_i};
     for (uint_fast16_t i = 0; i < ITERATIONS; ++i)
     {
+        //Calculate some values that are used below
         __m128d z_real_squared = _mm_mul_pd(z_real, z_real);
         __m128d z_imag_squared = _mm_mul_pd(z_imag, z_imag);
-        __m128d squared_sum = _mm_add_pd(z_real_squared, z_imag_squared);
 
-        //Check if the modulus of z < the converge value of 2
+        //Check if the modulus of each z < the converge value of 2 (aka that they have converged)
         //We do this faster by doing (z_real * z_real) + (z_imag * z_imag) < (2 * 2)
-        __m128d compare = _mm_cmplt_pd(squared_sum, four);
+        __m128d squared_sum = _mm_add_pd(z_real_squared, z_imag_squared);
+        __m128i compare = _mm_castpd_si128(_mm_cmplt_pd(squared_sum, four));
 
-        incrementor.vd = _mm_and_pd(compare, _mm_castsi128_pd(one_i));//If a number
-        //incrementor.vd = _mm_and_pd(incrementor.vd, _mm_and_pd(compare, _mm_castsi128_pd(one_i)));
-
-        //TODO is there a faster way of doing this?
-        //if (!incrementor.dw[0] && !incrementor.dw[1])
-        //if (!_mm_movemask_epi8(_mm_cmpeq_epi8(incrementor.vi, zero_i)))
-        if (!_mm_movemask_epi8(_mm_castpd_si128(compare)))
+        //If both complex numbers have converged (entire vector is 0), return early
+        bool at_least_one_not_converged = (bool)_mm_movemask_epi8(compare);
+        if (!at_least_one_not_converged)
         {
-            uint64_t temp0 = result.dw[0], temp1 = result.dw[1];
-
-            result.h[0] = temp0;
-            result.h[1] = temp1;
-            return result.vi;
+            result.hw[0] = result.dw[0];
+            result.hw[1] = result.dw[1];
+            return result.v;
         }
-
-        result.vi = _mm_add_epi64(result.vi, incrementor.vi);
 
         //Get next entries
         __m128d temp_zreal = _mm_add_pd(_mm_sub_pd(z_real_squared, z_imag_squared), c_real);
         z_imag = _mm_add_pd(c_imag, _mm_mul_pd(two, _mm_mul_pd(z_real, z_imag)));
         z_real = temp_zreal;
+
+        //Increment the corresponding count only if we haven't converged yet
+        __m128i incrementor = _mm_and_si128(compare, one_i);//If a number hasn't converged, we will increment it's count
+        result.v = _mm_add_epi64(result.v, incrementor);
     }
 
-    if (incrementor.dw[0])
-        result.h[0] = ITERATIONS;
-    else
-        result.h[0] = result.dw[0];
-
-    if (incrementor.dw[1])
-        result.h[1] = ITERATIONS;
-    else
-        result.h[1] = result.dw[1];
-
-    return result.vi;
+    //Pack the 64 bit values into the lower 32 bits
+    result.hw[0] = result.dw[0];
+    result.hw[1] = result.dw[1];
+    return result.v;
 }
 #endif
 
@@ -486,7 +465,7 @@ static int generate_intensities_threaded(void* workload_)
     mb_intensities_t* intensities = workload->intensities;
     mb_config_t* config = &intensities->config;
 
-    const uint16_t thread_x_px = config->x_pixels / processing_chunks;//TODO rounding?
+    const uint16_t thread_x_px = config->x_pixels / processing_chunks;//TODO what about rounding/excess pixels?
 
     /* This line here causes lots of issues.
      * When using low-precision numbers (floats), the subtraction done here causes a severe loss of precision that
@@ -502,42 +481,21 @@ static int generate_intensities_threaded(void* workload_)
 
     double x = config->min_x + (thread_x_range * workload->thread_num);
 
-    //TODO use vector hardware
-
 #ifdef MBBMP_SSE2
+    //TODO what if not an even number of pixels?
     for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); i += 2)
     {
         double y = config->min_y;
 
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
-            typedef union
-            {
-                double d[2];
-                uint16_t h[8];
-                uint32_t i[4];
-                uint64_t dw[2];
-                __m128d vd;
-                __m128i vi;
-            } v_converter;
+            //Perform mandelbrot iterations on two values at once!
+            __m128d real = _mm_set_pd(x, x + x_step);
+            __m128d imag = _mm_set_pd1(y);
 
-            v_converter real = {.d = {x, x + x_step}};
-            v_converter imag = {.d = {y, y}};
-
-            v_converter result = {.vi = mandelbrot_iterations_sse2_4(real.vd, imag.vd)};
-
-            //intensities->intensities[i + (j * config->x_pixels)] = result.h[0];
-            //intensities->intensities[i + ((j + 1) * config->x_pixels)] = result.h[1];
-            _mm_storeu_si32(&intensities->intensities[i + (j * config->x_pixels)], result.vi);
-
-            //TESTING
-            /*
-            uint16_t correct0 = mandelbrot_iterations_basic(CMPLXF(x, y));
-            uint16_t correct1 = mandelbrot_iterations_basic(CMPLXF(x + x_step, y));
-
-            if ((result.h[0] != correct0) || (result.h[1] != correct1))
-                printf("At %u %u, %u %u should have been %u %u\n", i, j, result.h[0], result.h[1], correct0, correct1);
-            */
+            //The results are stored in the lower 32 bits (16 bits each) and so can be directly stored
+            __m128i result = mandelbrot_iterations_sse2_4(real, imag);
+            _mm_storeu_si32(&intensities->intensities[i + (j * config->x_pixels)], result);
 
             y += y_step;
         }

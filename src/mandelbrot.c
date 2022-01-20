@@ -13,7 +13,7 @@
 #define MBBMP_SSE//Can be assumed on amd64
 #endif
 
-//#define MBBMP_AVX
+#define MBBMP_AVX
 //#define MBBMP_AVX2
 //#define MBBMP_AVX512
 

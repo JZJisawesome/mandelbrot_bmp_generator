@@ -9,7 +9,13 @@
 
 #define MBBMP_THREADING
 
-#define MBBMP_AVX//TESTING
+#ifdef __x86_64__
+#define MBBMP_SSE//Can be assumed on amd64
+#endif
+
+//#define MBBMP_AVX
+//#define MBBMP_AVX2
+//#define MBBMP_AVX512
 
 /* Includes */
 
@@ -34,18 +40,35 @@
 
 #ifdef __x86_64__
 
-#define MBBMP_SSE2
+#ifdef MBBMP_SSE2
+
 #include <emmintrin.h>
 
+#endif
+
 #ifdef MBBMP_AVX
+
 #undef MBBMP_SSE2
 #include <immintrin.h>
+
+#else
+
+#undef MBBMP_AVX2
+
+#endif
+
+#ifdef MBBMP_AVX512
+
+#undef MBBMP_AVX
+#undef MBBMP_AVX2
+
 #endif
 
 #else
 
 #undef MBBMP_SSE2
 #undef MBBMP_AVX
+#undef MBBMP_AVX2
 
 #endif
 
@@ -83,7 +106,7 @@ static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag);
 #endif
 
 #ifdef MBBMP_AVX
-static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag);
+static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag);//This is also for avx2
 #endif
 
 static void intensities_render_normal_8(bmp_t* restrict render, const mb_intensities_t* restrict intensities);//TODO implement
@@ -110,7 +133,7 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
     mb_intensities_t* restrict intensities = (mb_intensities_t*) malloc(sizeof(mb_config_t) + (sizeof(uint16_t) * config->x_pixels * config->y_pixels));
     memcpy(&intensities->config, config, sizeof(mb_config_t));
 
-    //TODO use vectorization
+
 
 #ifdef MBBMP_THREADING
     thrd_t threads[processing_chunks];
@@ -138,30 +161,7 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
 
     double x = config->min_x;
 
-/*
-#ifdef MBBMP_SSE2
-    //TODO
-
-    for (uint16_t i = 0; i < config->x_pixels; i += 4)
-    {
-        double y = config->min_y;
-        for (uint16_t j = 0; j < config->y_pixels; ++j)
-        {
-            __m128 c_real = _mm_set_ps();
-            __m128 c_imag;
-
-            __m128i results = mandelbrot_iterations_sse2_2(c_real, c_imag);
-
-            uint16_t results_to_keep[16]
-
-            y += y_step;
-        }
-
-        x += x_step * 4;
-    }
-
-#else
-*/
+    //TODO use vectorization despite not having threading
 
     for (uint16_t i = 0; i < config->x_pixels; ++i)
     {
@@ -386,7 +386,7 @@ static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag)
             return result.v;
         }
 
-        //Get next entries
+        //Get next entries (For each complex number z, z_(n+1) = z_n^2 + c)
         __m128d temp_zreal = _mm_add_pd(_mm_sub_pd(z_real_squared, z_imag_squared), c_real);
         z_imag = _mm_add_pd(c_imag, _mm_mul_pd(two, _mm_mul_pd(z_real, z_imag)));
         z_real = temp_zreal;
@@ -444,16 +444,22 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
             return result.v;
         }
 
-        //Get next entries
+        //Get next entries (For each complex number z, z_(n+1) = z_n^2 + c)
         __m256d temp_zreal = _mm256_add_pd(_mm256_sub_pd(z_real_squared, z_imag_squared), c_real);
-        z_imag = _mm256_add_pd(c_imag, _mm256_mul_pd(two, _mm256_mul_pd(z_real, z_imag)));
+#ifdef MBBMP_AVX2
+        z_imag = _mm256_fmadd_pd(two, _mm256_mul_pd(z_real, z_imag), c_imag);
+#else
+        z_imag = _mm256_add_pd(_mm256_mul_pd(two, _mm256_mul_pd(z_real, z_imag)), c_imag);
+#endif
         z_real = temp_zreal;
 
         //Increment the corresponding count only if we haven't converged yet
         __m256i incrementor = (__m256i)_mm256_and_pd(compare, (__m256d)one_i);//If a number hasn't converged, we will increment it's count
 
-        //Must add top and bottom seperatly
-        //result.v = _mm256_add_epi64(result.v, incrementor);//Requires AVX2
+        //Actually perform the addition
+#ifdef MBBMP_AVX2
+        result.v = _mm256_add_epi64(result.v, incrementor);//Requires AVX2
+#else//We must add the top and bottom seperatly
         __m128i lower_result = _mm256_extractf128_si256(result.v, 0);
         __m128i upper_result = _mm256_extractf128_si256(result.v, 1);
         __m128i lower_incrementor = _mm256_extractf128_si256(incrementor, 0);
@@ -462,6 +468,7 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
         __m128i upper_sum = _mm_add_epi64(upper_result, upper_incrementor);
         result.v = _mm256_castsi128_si256(lower_sum);
         result.v = _mm256_insertf128_si256(result.v, upper_sum, 1);
+#endif
     }
 
     //Pack the two 64 bit values into the lower 32 bits//TODO do this faster
@@ -570,7 +577,9 @@ static int generate_intensities_threaded(void* workload_)
 
     double x = config->min_x + (thread_x_range * workload->thread_num);
 
-#ifdef MBBMP_AVX
+#ifdef MBBMP_AVX512
+    assert(false);//TODO implement
+#elif defined(MBBMP_AVX)
     //TODO what if not an number of pixels divisible by 4?
     for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); i += 4)
     {

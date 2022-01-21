@@ -13,7 +13,7 @@
 #define MBBMP_SSE//Can be assumed on amd64
 #endif
 
-#define MBBMP_AVX
+//#define MBBMP_AVX
 //#define MBBMP_AVX2
 //#define MBBMP_AVX512
 
@@ -349,19 +349,11 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
 #ifdef MBBMP_SSE2
 static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag)
 {
-    //https://stackoverflow.com/questions/15986390/some-mandelbrot-drawing-routine-from-c-to-sse2
-    //https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#techs=SSE,SSE2
     const __m128d four = _mm_set_pd1(4.0);
     const __m128d two = _mm_set_pd1(2.0);
     const __m128i one_i = _mm_set1_epi64x(1);
-    const __m128i zero_i = _mm_set1_epi64x(0);
 
-    union
-    {
-        uint16_t hw[8];
-        uint64_t dw[2];
-        __m128i v;
-    } result = {.v = zero_i};
+    __m128i result = _mm_set1_epi64x(0);
 
     __m128d z_real = _mm_set_pd1(0);
     __m128d z_imag = _mm_set_pd1(0);
@@ -379,12 +371,7 @@ static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag)
         //If both complex numbers have converged (entire vector is 0), return early
         bool at_least_one_not_converged = (bool)_mm_movemask_epi8(compare);
         if (!at_least_one_not_converged)
-        {
-            //Pack the two 64 bit values into the lower 32 bits//TODO do this faster
-            result.hw[0] = result.dw[0];
-            result.hw[1] = result.dw[1];
-            return result.v;
-        }
+            break;
 
         //Get next entries (For each complex number z, z_(n+1) = z_n^2 + c)
         __m128d temp_zreal = _mm_add_pd(_mm_sub_pd(z_real_squared, z_imag_squared), c_real);
@@ -393,13 +380,12 @@ static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag)
 
         //Increment the corresponding count only if we haven't converged yet
         __m128i incrementor = _mm_and_si128(compare, one_i);//If a number hasn't converged, we will increment it's count
-        result.v = _mm_add_epi64(result.v, incrementor);
+        result = _mm_add_epi64(result, incrementor);
     }
 
-    //Pack the 64 bit values into the lower 32 bits//TODO do this faster
-    result.hw[0] = result.dw[0];
-    result.hw[1] = result.dw[1];
-    return result.v;
+    //Pack the 64 bit values into the lower 32 bits (16 bits each)
+    result = _mm_shuffle_epi32(result, _MM_SHUFFLE(0, 2, 0, 0));//TODO how does this work?
+    return result;
 }
 #endif
 
@@ -409,14 +395,8 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
     const __m256d four = _mm256_set1_pd(4.0);
     const __m256d two = _mm256_set1_pd(2.0);
     const __m256i one_i = _mm256_set1_epi64x(1);
-    const __m256i zero_i = _mm256_set1_epi64x(0);
 
-    union
-    {
-        uint16_t hw[16];
-        uint64_t dw[4];
-        __m256i v;
-    } result = {.v = zero_i};
+    __m256i result = _mm256_set1_epi64x(0);
 
     __m256d z_real = _mm256_set1_pd(0);
     __m256d z_imag = _mm256_set1_pd(0);
@@ -435,14 +415,7 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
         //If both complex numbers have converged (entire vector is 0), return early
         bool at_least_one_not_converged = (bool)_mm256_movemask_pd(compare);
         if (!at_least_one_not_converged)
-        {
-            //Pack the two 64 bit values into the lower 32 bits//TODO do this faster
-            result.hw[0] = result.dw[0];
-            result.hw[1] = result.dw[1];
-            result.hw[2] = result.dw[2];
-            result.hw[3] = result.dw[3];
-            return result.v;
-        }
+            break;
 
         //Get next entries (For each complex number z, z_(n+1) = z_n^2 + c)
         __m256d temp_zreal = _mm256_add_pd(_mm256_sub_pd(z_real_squared, z_imag_squared), c_real);
@@ -458,25 +431,30 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
 
         //Actually perform the addition
 #ifdef MBBMP_AVX2
-        result.v = _mm256_add_epi64(result.v, incrementor);//Requires AVX2
+        result.v = _mm256_add_epi64(result, incrementor);//Requires AVX2
 #else//We must add the top and bottom seperatly
-        __m128i lower_result = _mm256_extractf128_si256(result.v, 0);
-        __m128i upper_result = _mm256_extractf128_si256(result.v, 1);
-        __m128i lower_incrementor = _mm256_extractf128_si256(incrementor, 0);
+        __m128i lower_result = _mm256_castsi256_si128(result);
+        __m128i upper_result = _mm256_extractf128_si256(result, 1);
+        __m128i lower_incrementor = _mm256_castsi256_si128(incrementor);
         __m128i upper_incrementor = _mm256_extractf128_si256(incrementor, 1);
         __m128i lower_sum = _mm_add_epi64(lower_result, lower_incrementor);
         __m128i upper_sum = _mm_add_epi64(upper_result, upper_incrementor);
-        result.v = _mm256_castsi128_si256(lower_sum);
-        result.v = _mm256_insertf128_si256(result.v, upper_sum, 1);
+        result = _mm256_castsi128_si256(lower_sum);
+        result = _mm256_insertf128_si256(result, upper_sum, 1);
 #endif
     }
 
-    //Pack the two 64 bit values into the lower 32 bits//TODO do this faster
-    result.hw[0] = result.dw[0];
-    result.hw[1] = result.dw[1];
-    result.hw[2] = result.dw[2];
-    result.hw[3] = result.dw[3];
-    return result.v;
+    //Pack the four 64 bit values into the lower 64 bits (16 bits each)
+    //TODO can this be done faster
+    //TODO can this be done faster when using avx2?
+    //https://stackoverflow.com/questions/69408063/how-to-convert-int-64-to-int-32-with-avx-but-without-avx-512
+    __m256 result_f = _mm256_castsi256_ps(result);
+    __m128 lower_result_f = _mm256_castps256_ps128(result_f);
+    __m128 upper_result_f = _mm256_extractf128_ps(result_f, 1);
+    __m128 packed = _mm_shuffle_ps(lower_result_f, upper_result_f, _MM_SHUFFLE(2, 0, 2, 0));
+    __m128i shuffle_mask = _mm_setr_epi8(0, 1, 4, 5, 8, 9, 12, 13, 0, 0, 0, 0, 0, 0, 0, 0);
+    __m128i result_final = _mm_shuffle_epi8(_mm_castps_si128(packed), shuffle_mask);
+    return _mm256_castsi128_si256(result_final);
 }
 #endif
 

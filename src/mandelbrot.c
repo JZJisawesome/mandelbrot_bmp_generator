@@ -392,7 +392,7 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
 
         //Actually perform the addition
 #ifdef __AVX2__
-        result.v = _mm256_add_epi64(result, incrementor);//Requires AVX2
+        result = _mm256_add_epi64(result, incrementor);//Requires AVX2
 #else//We must add the top and bottom seperatly
         __m128i lower_result = _mm256_castsi256_si128(result);
         __m128i upper_result = _mm256_extractf128_si256(result, 1);

@@ -4,18 +4,10 @@
 
 /* Constants And Defines */
 
-#define ITERATIONS 256//1000
+#define ITERATIONS 255//1000
 #define CONVERGE_VALUE 2
 
 #define MBBMP_THREADING
-
-#ifdef __x86_64__
-#define MBBMP_SSE//Can be assumed on amd64
-#endif
-
-//#define MBBMP_AVX
-//#define MBBMP_AVX2
-//#define MBBMP_AVX512
 
 /* Includes */
 
@@ -38,38 +30,12 @@
 #include <stdatomic.h>
 #endif
 
-#ifdef __x86_64__
-
-#ifdef MBBMP_SSE2
-
+#ifdef __SSE2__
 #include <emmintrin.h>
-
 #endif
 
-#ifdef MBBMP_AVX
-
-#undef MBBMP_SSE2
+#ifdef __AVX__
 #include <immintrin.h>
-
-#else
-
-#undef MBBMP_AVX2
-
-#endif
-
-#ifdef MBBMP_AVX512
-
-#undef MBBMP_AVX
-#undef MBBMP_AVX2
-
-#endif
-
-#else
-
-#undef MBBMP_SSE2
-#undef MBBMP_AVX
-#undef MBBMP_AVX2
-
 #endif
 
 /* Types */
@@ -101,11 +67,11 @@ static atomic_ushort current_threads = 0;
 
 static uint16_t mandelbrot_iterations_basic(complex double c);
 
-#ifdef MBBMP_SSE2
+#ifdef __SSE2__
 static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag);
 #endif
 
-#ifdef MBBMP_AVX
+#ifdef __AVX__
 static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag);//This is also for avx2
 #endif
 
@@ -132,8 +98,6 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
 {
     mb_intensities_t* restrict intensities = (mb_intensities_t*) malloc(sizeof(mb_config_t) + (sizeof(uint16_t) * config->x_pixels * config->y_pixels));
     memcpy(&intensities->config, config, sizeof(mb_config_t));
-
-
 
 #ifdef MBBMP_THREADING
     thrd_t threads[processing_chunks];
@@ -174,9 +138,6 @@ mb_intensities_t* mb_generate_intensities(const mb_config_t* restrict config)
 
         x += x_step;
     }
-
-//#endif
-
 #endif
 
     return intensities;
@@ -346,7 +307,7 @@ static uint16_t mandelbrot_iterations_basic(complex double c)
     return ITERATIONS;//Failed to converge within ITERATIONS iterations
 }
 
-#ifdef MBBMP_SSE2
+#ifdef __SSE2__
 static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag)
 {
     const __m128d four = _mm_set_pd1(4.0);
@@ -389,7 +350,7 @@ static __m128i mandelbrot_iterations_sse2_2(__m128d c_real, __m128d c_imag)
 }
 #endif
 
-#ifdef MBBMP_AVX
+#ifdef __AVX__
 static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
 {
     const __m256d four = _mm256_set1_pd(4.0);
@@ -419,7 +380,7 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
 
         //Get next entries (For each complex number z, z_(n+1) = z_n^2 + c)
         __m256d temp_zreal = _mm256_add_pd(_mm256_sub_pd(z_real_squared, z_imag_squared), c_real);
-#ifdef MBBMP_AVX2
+#ifdef __FMA__
         z_imag = _mm256_fmadd_pd(two, _mm256_mul_pd(z_real, z_imag), c_imag);
 #else
         z_imag = _mm256_add_pd(_mm256_mul_pd(two, _mm256_mul_pd(z_real, z_imag)), c_imag);
@@ -430,7 +391,7 @@ static __m256i mandelbrot_iterations_avx_4(__m256d c_real, __m256d c_imag)
         __m256i incrementor = (__m256i)_mm256_and_pd(compare, (__m256d)one_i);//If a number hasn't converged, we will increment it's count
 
         //Actually perform the addition
-#ifdef MBBMP_AVX2
+#ifdef __AVX2__
         result.v = _mm256_add_epi64(result, incrementor);//Requires AVX2
 #else//We must add the top and bottom seperatly
         __m128i lower_result = _mm256_castsi256_si128(result);
@@ -489,12 +450,10 @@ static void intensities_render_inverted_8(bmp_t* restrict render, const mb_inten
             uint32_t value;
             uint32_t intensity = intensities->intensities[i + (j * intensities->config.x_pixels)];
 
-            if (intensity == ITERATIONS)
-                value = 255;//value = 0;
+            if (intensity >= ITERATIONS)
+                value = 0;
             else
-                value = intensity;
-
-            value = 255 - value;
+                value = 255 - ((intensity * 255) / ITERATIONS);
 
             bmp_px_set_8(render, i, j, value);
         }
@@ -515,12 +474,10 @@ static int intensities_render_inverted_8_thread(void* workload_)
             uint32_t value;
             uint32_t intensity = workload->intensities->intensities[i + (j * workload->intensities->config.x_pixels)];
 
-            if (intensity == ITERATIONS)
-                value = 255;//value = 0;
+            if (intensity >= ITERATIONS)
+                value = 0;
             else
-                value = intensity;
-
-            value = 255 - value;
+                value = 255 - ((intensity * 255) / ITERATIONS);
 
             bmp_px_set_8(workload->render, i, j, value);
         }
@@ -555,18 +512,19 @@ static int generate_intensities_threaded(void* workload_)
 
     double x = config->min_x + (thread_x_range * workload->thread_num);
 
-#ifdef MBBMP_AVX512
+#ifdef __AVX512F__
     assert(false);//TODO implement
-#elif defined(MBBMP_AVX)
+#elif defined(__AVX__)
     //TODO what if not an number of pixels divisible by 4?
     for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); i += 4)
     {
-        double y = config->min_y;
+        //Perform mandelbrot iterations on four values at once!
+        __m256d real = _mm256_set_pd(x + (3 * x_step), x + (2 * x_step), x + x_step, x);
 
+        double y = config->min_y;
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
             //Perform mandelbrot iterations on four values at once!
-            __m256d real = _mm256_set_pd(x + (3 * x_step), x + (2 * x_step), x + x_step, x);
             __m256d imag = _mm256_set1_pd(y);
 
             //The results are stored in the lower 64 bits (16 bits each) and so can be directly stored
@@ -578,16 +536,17 @@ static int generate_intensities_threaded(void* workload_)
 
         x += x_step * 4;
     }
-#elif defined(MBBMP_SSE2)
+#elif defined(__SSE2__)
     //TODO what if not an even number of pixels?
     for (uint16_t i = thread_x_px * workload->thread_num; i < thread_x_px * (workload->thread_num + 1); i += 2)
     {
-        double y = config->min_y;
+        //Perform mandelbrot iterations on two values at once!
+        __m128d real = _mm_set_pd(x + x_step, x);
 
+        double y = config->min_y;
         for (uint16_t j = 0; j < config->y_pixels; ++j)
         {
             //Perform mandelbrot iterations on two values at once!
-            __m128d real = _mm_set_pd(x + x_step, x);
             __m128d imag = _mm_set_pd1(y);
 
             //The results are stored in the lower 32 bits (16 bits each) and so can be directly stored
@@ -609,6 +568,7 @@ static int generate_intensities_threaded(void* workload_)
             intensities->intensities[i + (j * config->x_pixels)] = mandelbrot_iterations_basic(CMPLXF(x, y));
             y += y_step;
         }
+
         x += x_step;
     }
 #endif
